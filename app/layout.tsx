@@ -1,0 +1,47 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { Providers } from "@/components/providers";
+import { Toaster } from "sonner";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "Voxara - Your Partner to Go Viral | AI Video Generation",
+  description: "We analyze what's working for your competitors, clone your voice and face, then create viral content that dominates your niche. Start free today.",
+  keywords: "AI video generator, content creation, social media automation, video cloning, voice cloning, viral content, competitor analysis",
+  authors: [{ name: "Voxara" }],
+  icons: {
+    icon: "/logos/logo.png",
+    shortcut: "/logos/logo.png",
+    apple: "/logos/logo.png",
+  },
+  openGraph: {
+    title: "Voxara - Your Partner to Go Viral",
+    description: "We spy on your competitors. Then make you better. AI-powered viral video generation.",
+    type: "website",
+    images: ["/og-image.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Voxara - Your Partner to Go Viral",
+    description: "We spy on your competitors. Then make you better. AI-powered viral video generation.",
+  },
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>
+        <Providers>
+          {children}
+          <Toaster position="top-right" richColors closeButton />
+        </Providers>
+      </body>
+    </html>
+  );
+}
