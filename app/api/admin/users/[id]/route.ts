@@ -61,16 +61,24 @@ export async function PUT(
     const userId = params.id
     const body = await request.json()
 
+    // Normalize role to lowercase: DB expects "admin" | "user"
+    const role =
+      typeof body.role === "string"
+        ? (body.role.toLowerCase() as "admin" | "user")
+        : undefined
+    const validRole =
+      role === "admin" || role === "user" ? role : undefined
+
     const { data: user, error } = await supabase
-      .from('profiles')
+      .from("profiles")
       .update({
         full_name: body.full_name,
         email: body.email,
         credits: body.credits,
         plan: body.plan,
-        role: body.role,
+        ...(validRole !== undefined && { role: validRole }),
       })
-      .eq('id', userId)
+      .eq("id", userId)
       .select()
       .single()
 
