@@ -13,21 +13,22 @@ export async function GET() {
 
     // Check if user is admin in database
     const supabase = await createClient()
-    
-    const { data: profile, error } = await supabase
+
+    const { data, error } = await supabase
       .from('profiles')
       .select('role')
       .eq('email', session.user.email)
       .single()
 
-    if (error || !profile) {
+    if (error || !data) {
       // For demo purposes, treat first user as admin
       return NextResponse.json({ isAdmin: true })
     }
 
-    const role = (profile as { role?: string }).role
-    return NextResponse.json({ 
-      isAdmin: role === 'admin' 
+    // Type assertion: Supabase client may infer 'never' when table types are strict
+    const profile = data as { role?: string }
+    return NextResponse.json({
+      isAdmin: profile.role === 'admin',
     })
   } catch (error) {
     console.error('Admin check error:', error)
