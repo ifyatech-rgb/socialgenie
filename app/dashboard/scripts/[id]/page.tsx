@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -267,7 +268,7 @@ export default function ScriptViewPage() {
 
       if (response.ok) {
         toast.success("Script deleted");
-        router.push("/dashboard/scripts");
+        router.push("/dashboard");
       } else {
         toast.error("Failed to delete script");
       }
@@ -419,8 +420,8 @@ export default function ScriptViewPage() {
           <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">Script not found</h2>
           <p className="text-gray-500 mb-4">This script may have been deleted</p>
-          <Button onClick={() => router.push("/dashboard/scripts")}>
-            Go to My Scripts
+          <Button onClick={() => router.push("/dashboard")}>
+            Back to Dashboard
           </Button>
         </div>
       </div>
@@ -436,11 +437,11 @@ export default function ScriptViewPage() {
       {/* Header */}
       <div className="mb-8">
         <button
-          onClick={() => router.push("/dashboard/scripts")}
+          onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="text-sm">Back to My Scripts</span>
+          <span className="text-sm">Back to Dashboard</span>
         </button>
 
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -665,10 +666,12 @@ export default function ScriptViewPage() {
               What's Next?
             </h3>
             <div className="space-y-3">
-              <button className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/20 hover:from-primary/10 hover:to-secondary/10 transition-colors text-left">
-                <span className="font-medium text-gray-900">Create video with this script</span>
-                <ExternalLink className="h-4 w-4 text-primary" />
-              </button>
+              <Link href={`/dashboard/generate-video?script=${script.id}`}>
+                <button className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/20 hover:from-primary/10 hover:to-secondary/10 transition-colors text-left">
+                  <span className="font-medium text-gray-900">Create video with this script</span>
+                  <ExternalLink className="h-4 w-4 text-primary" />
+                </button>
+              </Link>
               <button
                 onClick={() => setShowRegenerateModal(true)}
                 className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-left"

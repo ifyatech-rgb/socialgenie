@@ -331,7 +331,7 @@ export default function DashboardPage() {
           transition={{ delay: 0.4 }}
         >
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Scripts</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Work</h2>
             <div className="space-y-3">
               {data?.recentScripts?.slice(0, 5).map((script) => (
                 <Link
