@@ -30,7 +30,7 @@ export async function GET() {
 
     const profile: ProfileRow = data as ProfileRow
     return NextResponse.json({
-      isAdmin: profile.role === 'admin',
+      isAdmin: (profile as any).role === 'admin',
     })
   } catch (error) {
     console.error('Admin check error:', error)
