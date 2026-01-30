@@ -25,10 +25,10 @@ export async function GET() {
       return NextResponse.json({ isAdmin: true })
     }
 
-    // Type assertion: Supabase client may infer 'never' when table types are strict
-    const profile = data as { role?: string }
+    // Supabase client can infer 'never' for .from('profiles') - assert at use site
+    const role = (data as Record<string, unknown>).role as string | undefined
     return NextResponse.json({
-      isAdmin: profile.role === 'admin',
+      isAdmin: role === 'admin',
     })
   } catch (error) {
     console.error('Admin check error:', error)
