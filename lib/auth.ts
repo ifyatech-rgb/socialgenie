@@ -94,7 +94,7 @@ async function syncUserToSupabase(email: string, name: string) {
   }
 }
 
-export const authOptions: NextAuthOptions = {
+export export const authOptions: NextAuthOptions = {
   // Note: PrismaAdapter is only used for OAuth providers
   // Credentials provider doesn't use the adapter
   providers: [

@@ -100,22 +100,21 @@ export function Navbar() {
         onClick={() => setIsOpen(false)}
       />
 
-      {/* Mobile Menu Drawer */}
+      {/* Mobile Menu Drawer - no duplicate logo; main nav stays the single header */}
       <div
         className={cn(
           "fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-white z-50 lg:hidden transform transition-transform duration-300 ease-out shadow-2xl",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
+        aria-hidden={!isOpen}
       >
         <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            <div onClick={() => setIsOpen(false)}>
-              <Logo size={40} showText={true} href="/" />
-            </div>
+          {/* Drawer header: close only (logo stays in main nav to avoid double header) */}
+          <div className="flex items-center justify-end p-4 border-b border-gray-100">
             <button
               onClick={() => setIsOpen(false)}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-label="Close menu"
             >
               <X className="h-6 w-6" />
             </button>

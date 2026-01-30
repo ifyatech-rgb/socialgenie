@@ -1,10 +1,8 @@
 import { PrismaClient } from '@prisma/client'
-import path from 'path'
 
-// Ensure DATABASE_URL is set (fixes "Environment variable not found" when .env not loaded)
-if (!process.env.DATABASE_URL) {
-  const dbPath = path.join(process.cwd(), 'prisma', 'dev.db')
-  process.env.DATABASE_URL = `file:${dbPath}`
+// DATABASE_URL must be set (PostgreSQL). In production use your Supabase/hosted Postgres URL.
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
+  throw new Error('DATABASE_URL is required in production. Set it to your PostgreSQL connection string.')
 }
 
 const globalForPrisma = globalThis as unknown as {

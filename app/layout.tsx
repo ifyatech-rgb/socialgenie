@@ -6,7 +6,14 @@ import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
+  : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(baseUrl),
   title: "Voxara - Your Partner to Go Viral | AI Video Generation",
   description: "We analyze what's working for your competitors, clone your voice and face, then create viral content that dominates your niche. Start free today.",
   keywords: "AI video generator, content creation, social media automation, video cloning, voice cloning, viral content, competitor analysis",
