@@ -136,12 +136,23 @@ export const authOptions: NextAuthOptions = {
               await syncUserToSupabase(credentials.email, userName);
             } catch (createError: any) {
               console.error("Error creating user:", createError);
-              // If user creation fails, try to find again (race condition)
+              // If user creation fails, try to find again (race condition / email already exists)
               user = await prisma.user.findUnique({
                 where: { email: credentials.email },
               });
-              if (!user) {
-                throw new Error("Failed to create account. Please try again.");
+              if (user) {
+                // Email already registered - treat as login
+                await syncUserToSupabase(credentials.email, user.name || userName);
+              } else {
+                // Real failure: surface a clearer message
+                const code = createError?.code;
+                if (code === "P2002") {
+                  throw new Error("Email already registered. Try logging in.");
+                }
+                if (code === "P1001" || code === "P1002" || code === "P1017") {
+                  throw new Error("Database connection failed. Please try again later.");
+                }
+                throw new Error(createError?.message || "Failed to create account. Please try again.");
               }
             }
           } else {

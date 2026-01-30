@@ -51,7 +51,8 @@ export default function SignInPage() {
       })
 
       if (result?.error) {
-        toast.error(isLogin ? "Invalid email or password" : "Failed to create account. Please try again.")
+        const message = typeof result.error === "string" ? result.error : (isLogin ? "Invalid email or password" : "Failed to create account. Please try again.")
+        toast.error(message)
       } else {
         toast.success(isLogin ? "Welcome back!" : "Account created successfully!")
         router.push("/dashboard")
