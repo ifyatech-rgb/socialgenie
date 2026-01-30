@@ -11,7 +11,7 @@ interface GenerateScriptRequest {
   platform: 'TikTok' | 'Instagram' | 'YouTube'
   tone: 'Educational' | 'Entertaining' | 'Motivational' | 'Controversial'
   length: 30 | 60 | 90
-  storyType?: 'personal' | 'expert' | 'contrarian' | 'casestudy'
+  storyType?: 'personal' | 'expert' | 'contrarian' | 'casestudy' | 'auto'
   storyContext?: string
   targetAudience?: string
   specificPoints?: string

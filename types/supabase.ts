@@ -47,6 +47,41 @@ export interface Database {
           updated_at?: string
         }
       }
+      profiles: {
+        Row: {
+          id: string
+          email: string
+          full_name: string | null
+          role: 'admin' | 'user'
+          credits: number | null
+          plan: string | null
+          avatar_url: string | null
+          created_at: string
+          last_active_at: string | null
+        }
+        Insert: {
+          id?: string
+          email: string
+          full_name?: string | null
+          role?: 'admin' | 'user'
+          credits?: number | null
+          plan?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          last_active_at?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string
+          full_name?: string | null
+          role?: 'admin' | 'user'
+          credits?: number | null
+          plan?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          last_active_at?: string | null
+        }
+      }
       videos: {
         Row: {
           id: string
@@ -155,6 +190,35 @@ export interface Database {
           updated_at?: string
         }
       }
+      activity_logs: {
+        Row: {
+          id: string
+          user_id: string
+          action: string
+          details: Json
+          ip_address: string | null
+          user_agent: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          action: string
+          details?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          action?: string
+          details?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -175,6 +239,7 @@ export type UpdateTables<T extends keyof Database['public']['Tables']> = Databas
 
 // Convenience type aliases
 export type User = Tables<'users'>
+export type Profile = Tables<'profiles'>
 export type Video = Tables<'videos'>
 export type Script = Tables<'scripts'>
 export type Subscription = Tables<'subscriptions'>

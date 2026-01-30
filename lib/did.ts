@@ -8,7 +8,7 @@
 export const DID_API_KEY = process.env.DID_API_KEY;
 export const DID_BASE_URL = "https://api.d-id.com";
 
-const authHeader = () =>
+const authHeaders = (): Record<string, string> =>
   DID_API_KEY ? { Authorization: `Basic ${DID_API_KEY}` } : {};
 
 // --- Consent (required before Express Avatar) ---
@@ -27,7 +27,7 @@ export async function createConsent(
   try {
     const res = await fetch(`${DID_BASE_URL}/consents`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader() },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ language }),
     });
     if (!res.ok) {
@@ -54,7 +54,7 @@ export async function uploadConsentVideo(
     if (webhook) body.webhook = webhook;
     const res = await fetch(`${DID_BASE_URL}/consents/${consentId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader() },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -75,7 +75,7 @@ export async function getConsentStatus(
   if (!DID_API_KEY) return null;
   try {
     const res = await fetch(`${DID_BASE_URL}/consents/${consentId}`, {
-      headers: authHeader(),
+      headers: authHeaders(),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -114,7 +114,7 @@ export async function createExpressAvatar(
     if (options?.thumbnail_url) body.thumbnail_url = options.thumbnail_url;
     const res = await fetch(`${DID_BASE_URL}/scenes/avatars`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader() },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -143,7 +143,7 @@ export async function getExpressAvatarStatus(
   if (!DID_API_KEY) return null;
   try {
     const res = await fetch(`${DID_BASE_URL}/scenes/avatars/${avatarId}`, {
-      headers: authHeader(),
+      headers: authHeaders(),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -191,7 +191,7 @@ export async function createScene(
     if (webhook) (body as Record<string, string>).webhook = webhook;
     const res = await fetch(`${DID_BASE_URL}/scenes`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader() },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -218,7 +218,7 @@ export async function getSceneStatus(
   if (!DID_API_KEY) return null;
   try {
     const res = await fetch(`${DID_BASE_URL}/scenes/${sceneId}`, {
-      headers: authHeader(),
+      headers: authHeaders(),
     });
     if (!res.ok) return null;
     const data = await res.json();

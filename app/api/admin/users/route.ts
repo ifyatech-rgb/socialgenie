@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = createClient()
+    const supabase = await createClient()
     const searchParams = request.nextUrl.searchParams
     
     const search = searchParams.get('search') || ''
@@ -50,12 +50,15 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
-    const { data: users, count, error } = await query
+    const { data: usersData, count, error } = await query
 
     if (error) {
       console.error('Users query error:', error)
       throw error
     }
+
+    type ProfileRow = { id: string; last_active_at: string | null; [key: string]: unknown }
+    const users = (usersData ?? null) as ProfileRow[] | null
 
     // Get script counts for each user
     const userIds = users?.map(u => u.id) || []
@@ -74,11 +77,11 @@ export async function GET(request: NextRequest) {
     const scriptsPerUser: Record<string, number> = {}
     const videosPerUser: Record<string, number> = {}
 
-    scriptCounts?.forEach(s => {
+    ;(scriptCounts as { user_id: string }[] | null)?.forEach(s => {
       scriptsPerUser[s.user_id] = (scriptsPerUser[s.user_id] || 0) + 1
     })
 
-    videoCounts?.forEach(v => {
+    ;(videoCounts as { user_id: string }[] | null)?.forEach(v => {
       videosPerUser[v.user_id] = (videosPerUser[v.user_id] || 0) + 1
     })
 
@@ -87,7 +90,7 @@ export async function GET(request: NextRequest) {
       ...user,
       scriptCount: scriptsPerUser[user.id] || 0,
       videoCount: videosPerUser[user.id] || 0,
-      isActive: user.last_active_at && new Date(user.last_active_at) > weekAgo
+      isActive: user.last_active_at ? new Date(user.last_active_at) > weekAgo : false
     }))
 
     return NextResponse.json({

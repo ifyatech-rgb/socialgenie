@@ -54,7 +54,9 @@ export async function POST(
       where: { id: params.id },
       data: {
         status: "generated",
-        videoUrl: null, // Clear any video URL
+        generatedVideoUrl: null,
+        generatedVideoId: null,
+        videoStatus: null,
       },
     });
 

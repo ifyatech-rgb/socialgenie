@@ -50,7 +50,8 @@ export async function GET(
           },
           data: {
             status: "video_ready",
-            videoUrl: status.result_url,
+            generatedVideoUrl: status.result_url ?? undefined,
+            videoStatus: "completed",
           },
         });
       }

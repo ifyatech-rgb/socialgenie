@@ -44,7 +44,7 @@ export async function logActivity(
       userAgent = request.headers.get('user-agent') || null
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('activity_logs')
       .insert({
         user_id: userId,
@@ -60,7 +60,7 @@ export async function logActivity(
     }
 
     // Also update last_active_at on the user profile
-    await supabase
+    await (supabase as any)
       .from('profiles')
       .update({ last_active_at: new Date().toISOString() })
       .eq('id', userId)

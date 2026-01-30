@@ -138,10 +138,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Script not found" }, { status: 404 });
     }
 
-    // Delete associated video first (if exists)
-    await prisma.video.deleteMany({
-      where: { scriptId: params.id },
-    });
+    // Delete associated video first if script was linked to one
+    if (existingScript.videoId) {
+      await prisma.video.deleteMany({
+        where: { id: existingScript.videoId },
+      });
+    }
 
     // Delete the script
     await prisma.script.delete({

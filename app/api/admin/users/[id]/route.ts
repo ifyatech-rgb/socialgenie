@@ -69,15 +69,16 @@ export async function PUT(
     const validRole =
       role === "admin" || role === "user" ? role : undefined
 
-    const { data: user, error } = await supabase
+    const updatePayload = {
+      full_name: body.full_name,
+      email: body.email,
+      credits: body.credits,
+      plan: body.plan,
+      ...(validRole !== undefined && { role: validRole }),
+    }
+    const { data: user, error } = await (supabase as any)
       .from("profiles")
-      .update({
-        full_name: body.full_name,
-        email: body.email,
-        credits: body.credits,
-        plan: body.plan,
-        ...(validRole !== undefined && { role: validRole }),
-      })
+      .update(updatePayload)
       .eq("id", userId)
       .select()
       .single()

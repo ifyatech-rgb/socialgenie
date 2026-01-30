@@ -10,7 +10,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = createClient()
+    const supabase = await createClient()
     const now = new Date()
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
@@ -94,7 +94,7 @@ export async function GET() {
 
     // Process signups by day
     const signupsByDay: Record<string, number> = {}
-    signupData?.forEach(user => {
+    ;(signupData as { created_at: string }[] | null)?.forEach(user => {
       const date = new Date(user.created_at).toISOString().split('T')[0]
       signupsByDay[date] = (signupsByDay[date] || 0) + 1
     })

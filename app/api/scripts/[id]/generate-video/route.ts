@@ -170,8 +170,8 @@ export async function GET(
 
     return NextResponse.json({
       status: script.status,
-      videoUrl: script.videoUrl,
-      hasVideo: !!script.videoUrl,
+      videoUrl: script.generatedVideoUrl,
+      hasVideo: !!script.generatedVideoUrl,
     });
   } catch (error: any) {
     return NextResponse.json(

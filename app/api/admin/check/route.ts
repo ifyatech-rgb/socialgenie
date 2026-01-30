@@ -12,7 +12,7 @@ export async function GET() {
     }
 
     // Check if user is admin in database
-    const supabase = createClient()
+    const supabase = await createClient()
     
     const { data: profile, error } = await supabase
       .from('profiles')
@@ -25,8 +25,9 @@ export async function GET() {
       return NextResponse.json({ isAdmin: true })
     }
 
+    const role = (profile as { role?: string }).role
     return NextResponse.json({ 
-      isAdmin: profile.role === 'admin' 
+      isAdmin: role === 'admin' 
     })
   } catch (error) {
     console.error('Admin check error:', error)
