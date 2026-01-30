@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 
+/** Shape of the profiles row we select (Supabase client may infer 'never', so we type it explicitly) */
+type ProfileRow = { role: string }
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
@@ -25,10 +28,9 @@ export async function GET() {
       return NextResponse.json({ isAdmin: true })
     }
 
-    // Supabase client can infer 'never' for .from('profiles') - assert at use site
-    const role = (data as Record<string, unknown>).role as string | undefined
+    const profile: ProfileRow = data as ProfileRow
     return NextResponse.json({
-      isAdmin: role === 'admin',
+      isAdmin: profile.role === 'admin',
     })
   } catch (error) {
     console.error('Admin check error:', error)
