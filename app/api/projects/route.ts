@@ -141,7 +141,7 @@ async function syncGeneratedVideo(
         (gv as { videoStatus: string | null }).videoStatus = "completed";
         (gv as { videoProgress: number | null }).videoProgress = 100;
       } else if (result.status === "error") {
-        const errMsg = typeof result.error === "string" ? result.error : (result.error as { message?: string })?.message ?? "Video generation failed";
+        const errMsg = typeof result.error === "string" ? result.error : (result.error as unknown as { message?: string })?.message ?? "Video generation failed";
         await prisma.generatedVideo.update({
           where: { id: gv.id },
           data: { videoStatus: "failed", videoProgress: 0, videoError: errMsg },
@@ -266,7 +266,7 @@ async function syncLegacyScript(
       (s as { videoStatus: string | null }).videoStatus = "completed";
       (s as { videoProgress: number | null }).videoProgress = 100;
     } else if (result.status === "error") {
-      const errMsg = typeof result.error === "string" ? result.error : (result.error as { message?: string })?.message ?? "Video generation failed";
+      const errMsg = typeof result.error === "string" ? result.error : (result.error as unknown as { message?: string })?.message ?? "Video generation failed";
       await prisma.script.update({
         where: { id: s.id },
         data: { videoStatus: "failed", videoError: errMsg, videoProgress: 0, status: "error" },
@@ -324,11 +324,18 @@ export async function GET(request: NextRequest) {
     }
     console.log("[Projects] userId:", userId);
 
-    let generatedVideos: Awaited<ReturnType<typeof prisma.generatedVideo.findMany>> = [];
+    type GeneratedVideoWithScript = Awaited<
+      ReturnType<
+        typeof prisma.generatedVideo.findMany<{
+          include: { script: { select: { id: true; topic: true; platform: true; content: true; projectName: true } } };
+        }>
+      >
+    >[number];
+    let generatedVideos: GeneratedVideoWithScript[] = [];
 
     // 1) Fetch GeneratedVideo rows
     try {
-      generatedVideos = await prisma.generatedVideo.findMany({
+      const result = await prisma.generatedVideo.findMany({
         where: { userId },
         include: {
           script: {
@@ -343,6 +350,7 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { createdAt: "desc" },
       });
+      generatedVideos = result;
     } catch (e) {
       console.warn("[Projects] GeneratedVideo query skipped:", e);
     }
@@ -375,7 +383,7 @@ export async function GET(request: NextRequest) {
     console.log(`[Projects] 🔄 Projects to sync (GeneratedVideo): ${gvProcessing.length} (skipping ${gvSkipped} completed/failed/other)`);
     if (gvProcessing.length > 0) {
       gvProcessing.forEach((gv) => {
-        console.log(`[Projects]   Syncing: id=${gv.id} videoId=${gv.generatedVideoId} provider=${gv.videoProvider} topic=${gv.script?.topic?.substring(0, 40) ?? "—"}`);
+        console.log(`[Projects]   Syncing: id=${gv.id} videoId=${gv.generatedVideoId} provider=${gv.videoProvider} scriptId=${gv.scriptId}`);
       });
     }
     await Promise.all(gvProcessing.map(syncGeneratedVideo));

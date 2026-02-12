@@ -14,7 +14,7 @@ const REDIRECT_DELAY_MS = 2000
 export default function SignupPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const canceled = searchParams.get("canceled") === "1"
+  const canceled = searchParams?.get("canceled") === "1"
 
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)

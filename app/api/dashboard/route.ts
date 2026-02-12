@@ -36,11 +36,12 @@ export async function GET(request: NextRequest) {
       try {
         const { createAdminClient } = await import('@/lib/supabase/server');
         const supabase = createAdminClient();
-        const { data: profile } = await supabase
+        const { data } = await supabase
           .from('profiles')
           .select('credits')
           .eq('email', user.email)
           .maybeSingle();
+        const profile = data as { credits?: number | null } | null;
         if (profile?.credits != null && typeof profile.credits === 'number') {
           credits = profile.credits;
         }

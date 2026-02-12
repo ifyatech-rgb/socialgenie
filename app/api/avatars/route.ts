@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       id: a.id,
       name: a.name,
       type: "custom",
-      gender: a.gender ?? "unknown",
+      gender: "unknown",
       preview_image_url: a.preview || a.videoPreview,
       preview_video_url: a.videoPreview,
       isCustom: true,

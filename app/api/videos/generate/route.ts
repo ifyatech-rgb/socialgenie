@@ -153,7 +153,16 @@ export async function POST(request: NextRequest) {
     }
     console.log('[VideoGen] Avatar:', heygenAvatarId, 'useClonedVoice:', useClonedVoice, 'voiceId:', bodyVoiceIdStr ?? 'none');
 
-    const bgValue = backgroundImageUrl || backgroundValue || (backgroundColor ?? undefined);
+    const bgValue =
+      (typeof backgroundImageUrl === "string" ? backgroundImageUrl : undefined) ||
+      (typeof backgroundValue === "string" ? backgroundValue : undefined) ||
+      (typeof backgroundColor === "string" ? backgroundColor : undefined);
+    const aspectRatioVal =
+      aspectRatio === "16:9" || aspectRatio === "1:1" ? aspectRatio : "9:16";
+    const backgroundTypeVal =
+      backgroundType === "image" || backgroundType === "color" || backgroundType === "green_screen"
+        ? backgroundType
+        : undefined;
     const result = await generateVideo({
       script: script.content,
       scriptId: script.id,
@@ -161,8 +170,8 @@ export async function POST(request: NextRequest) {
       useClonedVoice,
       voiceId: useClonedVoice ? undefined : (bodyVoiceIdStr || 'en-US-JennyNeural'),
       avatarId: heygenAvatarId,
-      aspectRatio,
-      backgroundType: backgroundType || undefined,
+      aspectRatio: aspectRatioVal,
+      backgroundType: backgroundTypeVal,
       backgroundValue: bgValue,
       captionsEnabled: !!bodyCaptionsEnabled,
       openCaption: bodyCaptionsEnabled ? captionStyle !== 'closed' : undefined,
@@ -361,9 +370,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (statusResult.status === 'error') {
-      const errorMessage = typeof statusResult.error === 'string' 
-        ? statusResult.error 
-        : statusResult.error?.message || statusResult.error?.detail || 'Video generation failed';
+      const errorMessage = typeof statusResult.error === 'string'
+        ? statusResult.error
+        : (statusResult.error as unknown as { message?: string; detail?: string })?.message
+          || (statusResult.error as unknown as { message?: string; detail?: string })?.detail
+          || 'Video generation failed';
       
       await prisma.script.update({
         where: { id: scriptId },

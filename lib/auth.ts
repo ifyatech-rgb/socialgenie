@@ -246,7 +246,7 @@ export async function getSessionFromRequestCookies(request: Request): Promise<{ 
   const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
   if (!secret) return null;
   const cookieHeader = request.headers.get("cookie") ?? "";
-  let cookies: Record<string, string>;
+  let cookies: Record<string, string | undefined>;
   try {
     const { parse } = await import("cookie");
     cookies = parse(cookieHeader);

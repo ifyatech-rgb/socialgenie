@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { checkVideoStatus } from "@/lib/video-generation";
+import { getHeyGenClient } from "@/lib/heygenClient";
 
 /**
  * GET /api/generate-video/[videoId]
@@ -27,12 +27,20 @@ export async function GET(
     }
 
     const { videoId } = await context.params;
-    const status = await checkVideoStatus(videoId, "heygen");
+    const heygen = getHeyGenClient();
+    const heygenStatus = await heygen.getVideoStatus(videoId);
+    const isDone = heygenStatus.status === "completed";
+    const resultUrl = heygenStatus.video_url ?? null;
+    const status = {
+      status: isDone ? ("done" as const) : heygenStatus.status === "failed" ? ("error" as const) : ("started" as const),
+      resultUrl,
+      error: heygenStatus.error ?? null,
+    };
 
     const searchParams = request.nextUrl.searchParams;
     const scriptId = searchParams.get("scriptId");
 
-    if (status.status === "done" && status.resultUrl && scriptId) {
+    if (status.status === "done" && resultUrl && scriptId) {
       const user = await prisma.user.findUnique({
         where: { email: session.user.email },
       });
@@ -41,7 +49,7 @@ export async function GET(
           where: { id: scriptId, userId: user.id },
           data: {
             status: "video_ready",
-            generatedVideoUrl: status.resultUrl ?? undefined,
+            generatedVideoUrl: resultUrl,
             videoStatus: "completed",
           },
         });
@@ -51,7 +59,7 @@ export async function GET(
     return NextResponse.json({
       videoId,
       status: status.status,
-      videoUrl: status.resultUrl ?? null,
+      videoUrl: resultUrl,
       isReady: status.status === "done",
       error: status.error ?? null,
     });

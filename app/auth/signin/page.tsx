@@ -11,7 +11,7 @@ import { LogoIcon } from "@/components/logo"
 export default function SignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const prefilledEmail = searchParams.get("email")?.trim() ?? ""
+  const prefilledEmail = searchParams?.get("email")?.trim() ?? ""
   const [isLogin, setIsLogin] = useState(true)
   const [noAccountFound, setNoAccountFound] = useState(false)
 

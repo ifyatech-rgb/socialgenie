@@ -75,7 +75,7 @@ export default function DashboardPage() {
   const successToastShown = useRef(false);
 
   useEffect(() => {
-    const success = searchParams.get("success") === "true";
+    const success = searchParams?.get("success") === "true";
     if (!success || successToastShown.current) return;
     const showSuccessToast = (d: DashboardData | null) => {
       successToastShown.current = true;

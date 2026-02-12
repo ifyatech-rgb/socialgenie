@@ -10,7 +10,7 @@ const DID_BASE = "https://api.d-id.com";
 export interface VideoGenerationRequest {
   script: string;
   scriptId: string;
-  provider?: "did";
+  provider?: "did" | "heygen";
   voiceId?: string;
   /** When true, do not send voice provider — D-ID uses the presenter's cloned voice. */
   useClonedVoice?: boolean;
@@ -29,7 +29,7 @@ export interface VideoGenerationResult {
   videoId?: string;
   videoUrl?: string;
   status: "pending" | "processing" | "completed" | "failed";
-  provider: "did";
+  provider: "did" | "heygen";
   error?: string;
   estimatedDuration?: number;
 }
@@ -44,11 +44,72 @@ export interface VideoStatus {
 const DEFAULT_VOICE = "en-US-JennyNeural";
 
 /**
- * Generate video using D-ID Clips
+ * Generate video using D-ID Clips or HeyGen
  */
 export async function generateVideo(
   request: VideoGenerationRequest
 ): Promise<VideoGenerationResult> {
+  if (request.provider === "heygen") {
+    try {
+      const { getHeyGenClient } = await import("./heygenClient");
+      if (!process.env.HEYGEN_API_KEY) {
+        return {
+          success: false,
+          status: "failed",
+          provider: "heygen",
+          error: "HeyGen API key not configured. Add HEYGEN_API_KEY to .env.",
+        };
+      }
+      const avatarId = request.avatarId;
+      if (!avatarId) {
+        return {
+          success: false,
+          status: "failed",
+          provider: "heygen",
+          error: "Avatar ID is required for HeyGen.",
+        };
+      }
+      const heygen = getHeyGenClient();
+      let voiceId = request.voiceId;
+      if (!voiceId) {
+        const details = await heygen.getAvatarDetails(avatarId);
+        voiceId = details?.defaultVoice ?? undefined;
+      }
+      if (!voiceId) {
+        const voices = await heygen.getVoices();
+        voiceId = voices[0]?.voice_id;
+      }
+      if (!voiceId) {
+        return {
+          success: false,
+          status: "failed",
+          provider: "heygen",
+          error: "No voice available. Provide voiceId or use an avatar with a default voice.",
+        };
+      }
+      const result = await heygen.generateVideo(
+        request.script,
+        avatarId,
+        voiceId,
+        { aspectRatio: request.aspectRatio ?? "9:16" }
+      );
+      return {
+        success: true,
+        videoId: result.videoId,
+        status: "processing",
+        provider: "heygen",
+        estimatedDuration: Math.ceil(request.script.length / 12),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        status: "failed",
+        provider: "heygen",
+        error: error instanceof Error ? error.message : "HeyGen video generation failed",
+      };
+    }
+  }
+
   const authHeader = getDIDAuthHeader();
   if (!authHeader) {
     console.error("[D-ID] DID_API_KEY is not set or invalid. Add DID_API_KEY to .env");

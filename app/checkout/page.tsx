@@ -12,7 +12,7 @@ export default function CheckoutPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
-  const canceled = searchParams.get("canceled") === "true"
+  const canceled = searchParams?.get("canceled") === "true"
 
   const [loading, setLoading] = useState(false)
 

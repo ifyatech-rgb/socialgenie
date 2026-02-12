@@ -271,7 +271,7 @@ class HeyGenClient {
         return true;
       });
 
-      const formatted: FormattedHeyGenAvatar[] = avatarsToShow
+      const formatted = avatarsToShow
         .map((avatar) => {
           const nativeResolution = this.getAvatarNativeResolution(avatar);
           const preview = avatar.preview_image_url || avatar.preview_video_url;
@@ -293,7 +293,7 @@ class HeyGenClient {
             height: nativeResolution.height,
           };
         })
-        .filter((a): a is FormattedHeyGenAvatar => a !== null);
+        .filter((a) => a !== null) as FormattedHeyGenAvatar[];
 
       console.log("[HeyGen] Formatted avatars (category + background filtered):", formatted.length);
       return formatted;
@@ -504,7 +504,7 @@ class HeyGenClient {
           "X-Api-Key": this.apiKey!,
           "Content-Type": mimeType,
         },
-        body: imageBuffer,
+        body: new Uint8Array(imageBuffer),
       });
       const responseText = await response.text();
       const data = responseText ? (JSON.parse(responseText) as { code?: number; data?: { talking_photo_id?: string; talking_photo_url?: string }; message?: string }) : {};
@@ -597,7 +597,7 @@ class HeyGenClient {
       const uploadResponse = await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": mimeType },
-        body: videoBuffer,
+        body: new Uint8Array(videoBuffer),
       });
 
       if (!uploadResponse.ok) {
@@ -801,8 +801,8 @@ class HeyGenClient {
       status: apiStatus as HeyGenVideoStatus["status"],
       video_url: videoUrl,
       thumbnail_url: thumbnailUrl,
-      duration: d?.duration,
-      error: d?.error,
+      duration: typeof d?.duration === "number" ? d.duration : undefined,
+      error: typeof d?.error === "string" ? d.error : undefined,
       progress,
     };
   }

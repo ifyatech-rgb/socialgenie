@@ -70,7 +70,7 @@ export function RecordingOverlay({
       mounted = false;
       if (timerRef.current) clearInterval(timerRef.current);
       if (recorderRef.current?.state !== "inactive") {
-        recorderRef.current.stop();
+        recorderRef.current?.stop();
       }
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };

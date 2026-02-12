@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
       const errorMessage =
         typeof statusResult.error === "string"
           ? statusResult.error
-          : (statusResult.error as { message?: string })?.message ?? "Video generation failed";
+          : (statusResult.error as unknown as { message?: string })?.message ?? "Video generation failed";
       await prisma.script.update({
         where: { id: scriptId },
         data: {
