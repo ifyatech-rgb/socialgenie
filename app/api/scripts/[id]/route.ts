@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 // GET - Fetch a single script
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,6 +14,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -24,7 +25,7 @@ export async function GET(
 
     const script = await prisma.script.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: user.id,
       },
       include: {
@@ -49,7 +50,7 @@ export async function GET(
 // PUT - Update a script
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -57,6 +58,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -68,7 +70,7 @@ export async function PUT(
     // Check if script exists and belongs to user
     const existingScript = await prisma.script.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: user.id,
       },
     });
@@ -83,7 +85,7 @@ export async function PUT(
 
     // Update the script
     const updatedScript = await prisma.script.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(content !== undefined && { content }),
         ...(topic !== undefined && { topic }),
@@ -110,7 +112,7 @@ export async function PUT(
 // DELETE - Delete a script
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -118,6 +120,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -129,7 +132,7 @@ export async function DELETE(
     // Check if script exists and belongs to user
     const existingScript = await prisma.script.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: user.id,
       },
     });
@@ -147,7 +150,7 @@ export async function DELETE(
 
     // Delete the script
     await prisma.script.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ 

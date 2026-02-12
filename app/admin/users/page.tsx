@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { 
-  Search, Filter, Download, MoreVertical, ChevronLeft, ChevronRight,
-  Eye, Mail, Ban, Trash2, UserCheck, Crown
+  Search, Download, MoreVertical, ChevronLeft, ChevronRight,
+  Eye, Mail, Ban, Trash2, UserCheck, Crown, Users
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -32,9 +32,9 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   
-  const [search, setSearch] = useState(searchParams.get('search') || '')
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
-  const [planFilter, setPlanFilter] = useState(searchParams.get('plan') || 'all')
+  const [search, setSearch] = useState(searchParams?.get('search') || '')
+  const [statusFilter, setStatusFilter] = useState(searchParams?.get('status') || 'all')
+  const [planFilter, setPlanFilter] = useState(searchParams?.get('plan') || 'all')
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [actionMenu, setActionMenu] = useState<string | null>(null)
@@ -241,8 +241,12 @@ export default function AdminUsersPage() {
                 ))
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-gray-500">
-                    No users found
+                  <td colSpan={10} className="p-12 text-center">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <Users className="h-12 w-12 mb-3 opacity-50" />
+                      <p className="font-medium">No users yet</p>
+                      <p className="text-sm mt-1">Waiting for first signup...</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -287,7 +291,7 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="p-4 text-white text-sm">{user.scriptCount}</td>
                     <td className="p-4 text-white text-sm">{user.videoCount}</td>
-                    <td className="p-4 text-white text-sm">{user.credits}</td>
+                    <td className="p-4 text-white text-sm">{user.credits ?? 0}</td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
                         user.isActive 

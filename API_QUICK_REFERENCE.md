@@ -52,7 +52,7 @@ your-project/
 │           │   └── route.ts    ← OpenAI API (already integrated)
 │           └── [id]/
 │               └── generate-video/
-│                   └── route.ts  ← HeyGen API (needs implementation)
+│                   └── route.ts  ← D-ID API (video generation)
 ```
 
 ---

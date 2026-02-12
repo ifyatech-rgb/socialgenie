@@ -39,13 +39,25 @@ export type ContentBlock = Anthropic.ContentBlock
 export type TextBlock = Anthropic.TextBlock
 
 /**
- * Helper function to extract text from Claude response
+ * Helper function to extract text from Claude response.
+ * For simple responses, returns the first text block.
  */
 export function extractTextFromResponse(response: Message): string {
   const textBlock = response.content.find(
     (block): block is TextBlock => block.type === 'text'
   )
   return textBlock?.text || ''
+}
+
+/**
+ * Extract ALL text from Claude response (for tool-use responses with multiple text blocks).
+ * Use when the response may contain: text → tool_use → tool_result → more text.
+ */
+export function extractAllTextFromResponse(response: Message): string {
+  return (response.content as Array<{ type: string; text?: string }>)
+    .filter((block) => block.type === 'text' && block.text)
+    .map((block) => block.text)
+    .join('\n\n')
 }
 
 /**

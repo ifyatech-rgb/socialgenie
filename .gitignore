@@ -18,6 +18,8 @@
 # misc
 .DS_Store
 *.pem
+/uploads
+/public/downloads
 
 # debug
 npm-debug.log*
@@ -37,3 +39,5 @@ next-env.d.ts
 
 # prisma
 /prisma/migrations
+
+public/uploads/

@@ -6,8 +6,21 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 
+// Vercel serverless has a read-only filesystem (except /tmp). Writing to public/uploads will fail.
+const isVercel = process.env.VERCEL === "1";
+
 export async function POST(request: NextRequest) {
   try {
+    if (isVercel) {
+      return NextResponse.json(
+        {
+          error:
+            "Video upload to server is not available on this deployment. Use Supabase Storage or S3 for production uploads.",
+        },
+        { status: 503 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

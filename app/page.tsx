@@ -76,19 +76,19 @@ export default function Home() {
 
               {/* Subheadline */}
               <h2 className="text-xl lg:text-2xl text-gray-600 font-medium mb-4">
-                We Spy on Your Competitors. Then Make You Better.
+                Complete AI video generation platform.
               </h2>
 
               {/* Description */}
               <p className="text-lg text-gray-500 mb-8 max-w-xl mx-auto lg:mx-0">
-                Upload your face once. We analyze what's working in your niche, write viral scripts that match winning patterns, and create videos with your AI clone—all while you sleep.
+                Create viral scripts, choose realistic avatars, add natural voices, and generate professional videos for YouTube Shorts, TikTok, and Instagram Reels in minutes.
               </p>
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
                 <Link href="/auth/signin">
                   <Button size="xl" icon={<ArrowRight className="h-5 w-5" />} iconPosition="right">
-                    Start Creating Free
+                    Get Started
                   </Button>
                 </Link>
                 <Button variant="secondary" size="xl" icon={<Play className="h-5 w-5 text-primary" />}>
@@ -100,11 +100,11 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-6 justify-center lg:justify-start text-sm text-gray-500">
                 <div className="flex items-center gap-2 justify-center lg:justify-start">
                   <Check className="h-5 w-5 text-success" />
-                  No credit card required
+                  Complete video generation
                 </div>
                 <div className="flex items-center gap-2 justify-center lg:justify-start">
                   <Check className="h-5 w-5 text-success" />
-                  2,000+ videos created today
+                  100+ AI avatars • 2-minute videos
                 </div>
                 <div className="flex items-center gap-2 justify-center lg:justify-start">
                   <Check className="h-5 w-5 text-success" />
@@ -132,7 +132,7 @@ export default function Home() {
                       ))}
                     </div>
                     <p className="text-sm text-gray-600">
-                      <span className="font-semibold text-dark">10,000+</span> creators trust Voxara
+                      <span className="font-semibold text-dark">10,000+</span> creators trust SocialGenie
                     </p>
                   </div>
                 </div>
@@ -256,13 +256,10 @@ export default function Home() {
       <Section id="how-it-works" background="white">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-dark mb-4">
-            Here's How Voxara{" "}
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Fixes Everything
-            </span>
+            How It Works
           </h2>
           <p className="text-xl text-gray-600">
-            3 steps. 3 minutes. Unlimited viral content.
+            Create viral videos in four simple steps.
           </p>
         </div>
 
@@ -391,11 +388,11 @@ export default function Home() {
         <div className="text-center mt-16">
           <Link href="/auth/signin">
             <Button size="xl" icon={<ArrowRight className="h-5 w-5" />} iconPosition="right">
-              Start Creating Your Clone
+              Start Creating Videos
             </Button>
           </Link>
           <p className="mt-4 text-gray-500">
-            Free trial • No credit card • 2 minutes to first video
+            Complete video generation platform
           </p>
         </div>
       </Section>
@@ -464,11 +461,11 @@ export default function Home() {
             </div>
           </Card>
 
-          {/* Voxara */}
+          {/* SocialGenie */}
           <Card className="text-center relative overflow-hidden bg-white border-2 border-primary shadow-2xl shadow-primary/20">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-accent" />
             <div className="text-4xl mb-4">👑</div>
-            <h3 className="text-xl font-bold text-dark mb-4">Voxara</h3>
+            <h3 className="text-xl font-bold text-dark mb-4">SocialGenie</h3>
             <div className="space-y-3 text-sm text-gray-600 mb-6">
               <p><strong className="text-dark">Time:</strong> 3 minutes</p>
               <p><strong className="text-dark">Cost:</strong> $99/month</p>
@@ -534,7 +531,7 @@ export default function Home() {
         {/* Testimonials */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
-            { name: "Sarah Chen", role: "Fitness Coach", quote: "I went from 2K to 150K followers in 90 days using Voxara. The competitor analysis is insane!", metric: "+148K followers", avatar: "SC" },
+            { name: "Sarah Chen", role: "Fitness Coach", quote: "I went from 2K to 150K followers in 90 days using SocialGenie. The competitor analysis is insane!", metric: "+148K followers", avatar: "SC" },
             { name: "Mike Rodriguez", role: "Business Coach", quote: "Made $12K in my first month. The AI scripts are better than what I could write myself.", metric: "$12K revenue", avatar: "MR" },
             { name: "Lisa Park", role: "Tech Reviewer", quote: "4.2M views on one video. Mind blown! This is the future of content creation.", metric: "4.2M views", avatar: "LP" },
           ].map((testimonial, idx) => (
@@ -579,12 +576,12 @@ export default function Home() {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
-            { icon: <Binoculars className="h-6 w-6" />, title: "Competitor Spy Mode", description: "Analyze your top competitors' viral videos, extract patterns that work.", badge: "AI-Powered", color: "primary" },
-            { icon: <FileText className="h-6 w-6" />, title: "Viral Script Generator", description: "Scripts based on proven winners. Every hook is data-backed.", badge: "Proven Formulas", color: "secondary" },
-            { icon: <Users className="h-6 w-6" />, title: "Hyper-Realistic Clone", description: "Your AI clone looks, sounds, and moves exactly like you.", badge: "D-ID Powered", color: "accent" },
-            { icon: <Globe className="h-6 w-6" />, title: "Multi-Platform Export", description: "Same content, optimized for TikTok, Instagram, YouTube.", badge: "One Click", color: "primary" },
-            { icon: <Mic className="h-6 w-6" />, title: "Voice Cloning (140+ Languages)", description: "Sounds exactly like you. Or translate to any language.", badge: "Global Reach", color: "secondary" },
-            { icon: <Brain className="h-6 w-6" />, title: "Continuous Learning", description: "Your clone gets better over time. Learns what performs best.", badge: "Always Improving", color: "accent" },
+            { icon: <FileText className="h-6 w-6" />, title: "AI Script Generation", description: "Generate viral scripts with AI, optimized for TikTok, Instagram Reels, and YouTube Shorts. Perfect hooks, engaging content, viral potential.", badge: "AI-Powered", color: "primary" },
+            { icon: <Brain className="h-6 w-6" />, title: "Project Management", description: "Track all your videos in one place. Edit scripts, regenerate videos, and manage your entire content library effortlessly.", badge: "Proven Formulas", color: "secondary" },
+            { icon: <Users className="h-6 w-6" />, title: "100+ Realistic AI Avatars", description: "Choose from diverse, professional AI avatars with natural expressions and movements. Create videos without ever being on camera.", badge: "HeyGen Powered", color: "accent" },
+            { icon: <Globe className="h-6 w-6" />, title: "Multi-Platform Formats", description: "Optimized for YouTube Shorts (9:16), TikTok, Instagram Reels, and more. Perfect dimensions and formats every time.", badge: "One Click", color: "primary" },
+            { icon: <Mic className="h-6 w-6" />, title: "Natural AI Voices", description: "50+ voices in multiple languages with perfect pronunciation. No robotic sound—just natural, engaging narration for your videos.", badge: "Global Reach", color: "secondary" },
+            { icon: <Zap className="h-6 w-6" />, title: "Fast Video Generation", description: "Videos ready in 2-3 minutes. Real-time progress tracking so you know exactly when your professional video is ready to download.", badge: "Always Improving", color: "accent" },
           ].map((feature, idx) => (
             <Card key={idx} hover glow padding="lg">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
@@ -640,7 +637,7 @@ export default function Home() {
             <Button variant="outline" fullWidth>
               Join Waitlist
             </Button>
-            <p className="text-xs text-gray-500 text-center mt-3">No credit card required</p>
+            <p className="text-xs text-gray-500 text-center mt-3">Complete video platform</p>
           </Card>
 
           {/* Creator */}
@@ -693,7 +690,7 @@ export default function Home() {
           <h3 className="text-2xl font-bold text-dark text-center mb-8">Frequently Asked Questions</h3>
           <div className="space-y-4">
             {[
-              { q: "When will Voxara launch?", a: "We're launching very soon! Join the waitlist for early access and exclusive pricing." },
+              { q: "When will SocialGenie launch?", a: "We're launching very soon! Join the waitlist for early access and exclusive pricing." },
               { q: "Can I change plans later?", a: "Yes, you can upgrade or downgrade your plan at any time." },
               { q: "Do I own the videos?", a: "100% yes. All videos you create are completely yours to use however you want." },
               { q: "What's the refund policy?", a: "We offer a 30-day money-back guarantee, no questions asked." },

@@ -1,0 +1,306 @@
+/* SOCIALGENIE DESIGN SYSTEM - FRAMER INSPIRED */
+
+:root {
+  /* Colors - Purple/Blue Gradient Theme */
+  --sg-primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --sg-primary: #667eea;
+  --sg-primary-dark: #764ba2;
+  --sg-secondary: #4caf50;
+  --sg-accent: #ff6b6b;
+
+  /* Neutral Colors */
+  --sg-bg-primary: #ffffff;
+  --sg-bg-secondary: #f8f9fa;
+  --sg-bg-tertiary: #f0f2f5;
+  --sg-text-primary: #1a1a1a;
+  --sg-text-secondary: #666666;
+  --sg-text-light: #999999;
+  --sg-border: #e0e0e0;
+
+  /* Shadows */
+  --sg-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --sg-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --sg-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.16);
+  --sg-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.2);
+  --sg-shadow-gradient: 0 8px 32px rgba(102, 126, 234, 0.3);
+
+  /* Spacing */
+  --sg-xs: 8px;
+  --sg-sm: 16px;
+  --sg-md: 24px;
+  --sg-lg: 32px;
+  --sg-xl: 48px;
+  --sg-2xl: 64px;
+  --sg-3xl: 96px;
+
+  /* Border Radius */
+  --sg-radius-sm: 8px;
+  --sg-radius-md: 12px;
+  --sg-radius-lg: 16px;
+  --sg-radius-xl: 20px;
+  --sg-radius-2xl: 24px;
+  --sg-radius-full: 9999px;
+
+  /* Typography */
+  --sg-font-size-xs: 12px;
+  --sg-font-size-sm: 14px;
+  --sg-font-size-base: 16px;
+  --sg-font-size-lg: 18px;
+  --sg-font-size-xl: 20px;
+  --sg-font-size-2xl: 24px;
+  --sg-font-size-3xl: 32px;
+  --sg-font-size-4xl: 40px;
+  --sg-font-size-5xl: 48px;
+  --sg-font-size-6xl: 64px;
+
+  /* Transitions */
+  --sg-transition-fast: 150ms ease;
+  --sg-transition-base: 250ms ease;
+  --sg-transition-slow: 350ms ease;
+
+  /* Z-index */
+  --sg-z-dropdown: 1000;
+  --sg-z-sticky: 1020;
+  --sg-z-fixed: 1030;
+  --sg-z-modal-backdrop: 1040;
+  --sg-z-modal: 1050;
+}
+
+/* Typography utilities */
+.sg-heading-1 {
+  font-size: var(--sg-font-size-6xl);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.sg-heading-2 {
+  font-size: var(--sg-font-size-5xl);
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.sg-heading-3 {
+  font-size: var(--sg-font-size-4xl);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.sg-heading-4 {
+  font-size: var(--sg-font-size-3xl);
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.sg-heading-5 {
+  font-size: var(--sg-font-size-2xl);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.sg-text-gradient {
+  background: var(--sg-primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Modern card */
+.sg-card {
+  background: var(--sg-bg-primary);
+  border-radius: var(--sg-radius-xl);
+  box-shadow: var(--sg-shadow-md);
+  border: 1px solid var(--sg-border);
+  transition: all var(--sg-transition-base);
+}
+
+.sg-card:hover {
+  box-shadow: var(--sg-shadow-lg);
+  transform: translateY(-4px);
+}
+
+/* Modern button */
+.sg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sg-xs);
+  padding: 14px 28px;
+  border-radius: var(--sg-radius-full);
+  font-weight: 700;
+  font-size: var(--sg-font-size-base);
+  cursor: pointer;
+  transition: all var(--sg-transition-base);
+  border: none;
+  outline: none;
+  white-space: nowrap;
+}
+
+.sg-btn-primary {
+  background: var(--sg-primary-gradient);
+  color: white;
+  box-shadow: var(--sg-shadow-gradient);
+}
+
+.sg-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.4);
+}
+
+.sg-btn-secondary {
+  background: var(--sg-bg-secondary);
+  color: var(--sg-text-primary);
+  border: 2px solid var(--sg-border);
+}
+
+.sg-btn-secondary:hover {
+  background: var(--sg-bg-tertiary);
+  border-color: var(--sg-primary);
+}
+
+.sg-btn-ghost {
+  background: transparent;
+  color: var(--sg-text-primary);
+}
+
+.sg-btn-ghost:hover {
+  background: var(--sg-bg-secondary);
+}
+
+/* Badge */
+.sg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--sg-radius-full);
+  font-size: var(--sg-font-size-sm);
+  font-weight: 700;
+  background: rgba(102, 126, 234, 0.1);
+  color: var(--sg-primary);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+/* Glassmorphism */
+.sg-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.sg-glass-dark {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Container */
+.sg-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--sg-lg);
+}
+
+.sg-container-narrow {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 var(--sg-lg);
+}
+
+/* Section */
+.sg-section {
+  padding: var(--sg-3xl) 0;
+}
+
+/* Grid */
+.sg-grid {
+  display: grid;
+  gap: var(--sg-lg);
+}
+
+.sg-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.sg-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.sg-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Animations */
+@keyframes sg-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sg-slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes sg-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes sg-pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
+}
+
+.sg-animate-fadeIn {
+  animation: sg-fadeIn 0.6s ease forwards;
+}
+
+.sg-animate-float {
+  animation: sg-float 3s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sg-grid-2,
+  .sg-grid-3,
+  .sg-grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .sg-heading-1 {
+    font-size: var(--sg-font-size-4xl);
+  }
+  .sg-heading-2 {
+    font-size: var(--sg-font-size-3xl);
+  }
+  .sg-heading-3 {
+    font-size: var(--sg-font-size-2xl);
+  }
+}

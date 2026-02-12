@@ -6,6 +6,11 @@
 - 1000+ modules per page
 - OneDrive sync slowing file operations
 
+## Code-Level Optimizations (Applied)
+- **Navbar scroll handler**: Throttled with `requestAnimationFrame` + `passive: true` to reduce re-renders
+- **Hero blur orbs**: Removed `animate-pulse` from 3 elements (expensive; now static blur)
+- **Footer**: Already lazy-loaded via `dynamic()` import
+
 ## Solutions
 
 ### 1. **Move Project Off OneDrive** ⚡ (BIGGEST IMPACT)

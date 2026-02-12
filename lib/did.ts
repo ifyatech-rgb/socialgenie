@@ -5,11 +5,15 @@
  * Docs: https://docs.d-id.com/reference/express-avatars-overview
  */
 
+import { getDIDAuthHeader } from "./did-auth";
+
 export const DID_API_KEY = process.env.DID_API_KEY;
 export const DID_BASE_URL = "https://api.d-id.com";
 
-const authHeaders = (): Record<string, string> =>
-  DID_API_KEY ? { Authorization: `Basic ${DID_API_KEY}` } : {};
+const authHeaders = (): Record<string, string> => {
+  const h = getDIDAuthHeader();
+  return h ? { Authorization: h } : {};
+};
 
 // --- Consent (required before Express Avatar) ---
 
@@ -23,7 +27,7 @@ export interface ConsentResponse {
 export async function createConsent(
   language: string = "english"
 ): Promise<ConsentResponse | null> {
-  if (!DID_API_KEY) return null;
+  if (!getDIDAuthHeader()) return null;
   try {
     const res = await fetch(`${DID_BASE_URL}/consents`, {
       method: "POST",
@@ -48,7 +52,7 @@ export async function uploadConsentVideo(
   sourceUrl: string,
   webhook?: string
 ): Promise<boolean> {
-  if (!DID_API_KEY) return false;
+  if (!getDIDAuthHeader()) return false;
   try {
     const body: Record<string, string> = { name, source_url: sourceUrl };
     if (webhook) body.webhook = webhook;
@@ -72,7 +76,7 @@ export async function uploadConsentVideo(
 export async function getConsentStatus(
   consentId: string
 ): Promise<{ status: string } | null> {
-  if (!DID_API_KEY) return null;
+  if (!getDIDAuthHeader()) return null;
   try {
     const res = await fetch(`${DID_BASE_URL}/consents/${consentId}`, {
       headers: authHeaders(),
@@ -101,7 +105,7 @@ export async function createExpressAvatar(
   sourceUrl: string,
   options?: { webhook?: string; thumbnail_url?: string }
 ): Promise<CreateExpressAvatarResponse | null> {
-  if (!DID_API_KEY) return null;
+  if (!getDIDAuthHeader()) return null;
   try {
     const body: Record<string, string> = {
       name,
@@ -140,7 +144,7 @@ export interface ExpressAvatarStatus {
 export async function getExpressAvatarStatus(
   avatarId: string
 ): Promise<ExpressAvatarStatus | null> {
-  if (!DID_API_KEY) return null;
+  if (!getDIDAuthHeader()) return null;
   try {
     const res = await fetch(`${DID_BASE_URL}/scenes/avatars/${avatarId}`, {
       headers: authHeaders(),
@@ -175,7 +179,7 @@ export async function createScene(
   voiceId: string,
   webhook?: string
 ): Promise<CreateSceneResponse | null> {
-  if (!DID_API_KEY) return null;
+  if (!getDIDAuthHeader()) return null;
   try {
     const body: Record<string, unknown> = {
       avatar_id: avatarId,
@@ -215,7 +219,7 @@ export interface SceneStatus {
 export async function getSceneStatus(
   sceneId: string
 ): Promise<SceneStatus | null> {
-  if (!DID_API_KEY) return null;
+  if (!getDIDAuthHeader()) return null;
   try {
     const res = await fetch(`${DID_BASE_URL}/scenes/${sceneId}`, {
       headers: authHeaders(),

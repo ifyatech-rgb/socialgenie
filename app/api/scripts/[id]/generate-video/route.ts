@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generateVideo, DID_VOICES } from "@/lib/d-id";
+import { generateVideo } from "@/lib/video-generation";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,8 +14,10 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
+      select: { id: true, credits: true, avatarId: true, avatarStatus: true },
     });
 
     if (!user) {
@@ -23,23 +25,17 @@ export async function POST(
     }
 
     const script = await prisma.script.findFirst({
-      where: {
-        id: params.id,
-        userId: user.id,
-      },
-      include: {
-        video: true,
-      },
+      where: { id, userId: user.id },
+      include: { video: true },
     });
 
     if (!script) {
       return NextResponse.json({ error: "Script not found" }, { status: 404 });
     }
 
-    // Check if D-ID API key is configured
-    if (!process.env.DID_API_KEY) {
+    if (!process.env.HEYGEN_API_KEY) {
       return NextResponse.json(
-        { error: "D-ID API key not configured. Please add DID_API_KEY to your .env file." },
+        { error: "HeyGen API key not configured. Please add HEYGEN_API_KEY to your .env file." },
         { status: 500 }
       );
     }
@@ -47,101 +43,82 @@ export async function POST(
     // Update script status to processing
     await prisma.script.update({
       where: { id: script.id },
-      data: { status: "video_processing" },
+      data: { status: "video_processing", videoStatus: "processing" },
     });
 
-    console.log("Generating video with D-ID for script:", script.id);
+    console.log("Generating video with HeyGen for script:", script.id);
 
     try {
-      // Parse request body for optional settings
-      let voiceId = "en-US-JennyNeural";
-      let sourceUrl = undefined;
-      
+      let avatarId = user.avatarId && user.avatarStatus === "ready" ? user.avatarId : undefined;
       try {
         const body = await request.json();
-        if (body.voiceId && DID_VOICES[body.voiceId as keyof typeof DID_VOICES]) {
-          voiceId = body.voiceId;
-        }
-        if (body.sourceUrl) {
-          sourceUrl = body.sourceUrl;
-        }
+        if (body.avatarId) avatarId = body.avatarId;
       } catch {
-        // No body provided, use defaults
+        // No body, use user avatar or default
       }
 
-      // Generate video with D-ID (don't wait for completion due to timeout issues)
-      const result = await generateVideo(script.content, {
-        voiceId,
-        sourceUrl,
-        waitForCompletion: false, // Changed to false to avoid timeout
+      const result = await generateVideo({
+        script: script.content,
+        scriptId: script.id,
+        provider: "heygen",
+        avatarId,
       });
 
-      // Video is being generated, keep status as processing
-      return NextResponse.json({
-        success: true,
-        message: "Video generation started! Check your D-ID dashboard at https://studio.d-id.com/talks for the result.",
-        mode: "d-id",
-        videoId: result.videoId,
-        status: result.status,
-        note: "Due to D-ID API timeout issues, please check your D-ID dashboard to download the video once it's ready (usually 1-2 minutes).",
-        dashboardUrl: `https://studio.d-id.com/talks/${result.videoId}`,
-      });
+      if (!result.success || !result.videoId) {
+        await prisma.script.update({
+          where: { id: script.id },
+          data: { status: "generated", videoStatus: null },
+        });
+        return NextResponse.json(
+          { error: result.error || "Video generation failed" },
+          { status: 500 }
+        );
+      }
 
-    } catch (error: any) {
-      console.error("D-ID video generation error:", error);
-
-      // Reset script status on error
       await prisma.script.update({
         where: { id: script.id },
-        data: { status: "generated" },
+        data: {
+          generatedVideoId: result.videoId,
+          videoProvider: "heygen",
+          videoStatus: "processing",
+        },
       });
 
+      return NextResponse.json({
+        success: true,
+        message: "Video generation started. This may take 2–5 minutes.",
+        mode: "heygen",
+        videoId: result.videoId,
+        status: result.status,
+        note: "Poll GET /api/scripts/[id]/generate-video or use /api/videos/generate?scriptId=... to check status.",
+      });
+    } catch (error: unknown) {
+      console.error("HeyGen video generation error:", error);
+      await prisma.script.update({
+        where: { id: script.id },
+        data: { status: "generated", videoStatus: null },
+      });
       throw error;
     }
-
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Video generation error:", error);
-
-    // Handle specific D-ID errors
-    if (error.message?.includes("Invalid D-ID API key")) {
-      return NextResponse.json(
-        { error: "Invalid D-ID API key. Please check your DID_API_KEY in .env file." },
-        { status: 401 }
-      );
+    const message = error instanceof Error ? error.message : "Failed to generate video";
+    if (message.includes("HeyGen API key")) {
+      return NextResponse.json({ error: message }, { status: 401 });
     }
-
-    if (error.message?.includes("credits exhausted")) {
-      return NextResponse.json(
-        { error: "D-ID credits exhausted. Please add more credits to your D-ID account." },
-        { status: 402 }
-      );
+    if (message.includes("credits")) {
+      return NextResponse.json({ error: message }, { status: 402 });
     }
-
-    if (error.message?.includes("rate limit")) {
-      return NextResponse.json(
-        { error: "D-ID rate limit exceeded. Please try again in a moment." },
-        { status: 429 }
-      );
+    if (message.includes("rate limit")) {
+      return NextResponse.json({ error: message }, { status: 429 });
     }
-
-    if (error.message?.includes("Unsupported file url")) {
-      return NextResponse.json(
-        { error: "The default avatar image is not supported. Please upload a training video or provide a custom avatar image URL." },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: error.message || "Failed to generate video" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-// GET - Check video generation status
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -149,6 +126,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -158,10 +136,7 @@ export async function GET(
     }
 
     const script = await prisma.script.findFirst({
-      where: {
-        id: params.id,
-        userId: user.id,
-      },
+      where: { id, userId: user.id },
     });
 
     if (!script) {
@@ -170,12 +145,14 @@ export async function GET(
 
     return NextResponse.json({
       status: script.status,
+      videoStatus: script.videoStatus,
       videoUrl: script.generatedVideoUrl,
       hasVideo: !!script.generatedVideoUrl,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error("Video status error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to check status" },
+      { error: error instanceof Error ? error.message : "Failed to check status" },
       { status: 500 }
     );
   }

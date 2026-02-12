@@ -5,8 +5,9 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { 
   LayoutDashboard, Users, Activity, BarChart3, Settings, 
-  Zap, ChevronLeft, Menu, LogOut, Bell, Search
+  ChevronLeft, Menu, LogOut, Bell, Search
 } from "lucide-react"
+import { Logo } from "@/components/logo"
 import { useSession, signOut } from "next-auth/react"
 import { toast } from "sonner"
 
@@ -27,31 +28,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
 
   useEffect(() => {
-    // Check if user is admin
     async function checkAdmin() {
       if (status === "loading") return
-      
+
       if (!session?.user) {
-        router.push("/auth/signin")
+        setIsAdmin(false)
+        router.replace("/auth/signin")
         return
       }
 
-      // For demo purposes, allow access. In production, check role from database
-      // This would normally be: if (session.user.role !== 'admin')
       try {
         const res = await fetch("/api/admin/check")
         const data = await res.json()
-        
-        if (!data.isAdmin) {
+
+        if (!res.ok || !data.isAdmin) {
+          setIsAdmin(false)
           toast.error("Access denied. Admin only.")
-          router.push("/dashboard")
+          router.replace("/dashboard")
           return
         }
-        
+
         setIsAdmin(true)
-      } catch (error) {
-        // For demo, set as admin
-        setIsAdmin(true)
+      } catch (err) {
+        console.error("Admin check error:", err)
+        setIsAdmin(false)
+        toast.error("Failed to verify admin access.")
+        router.replace("/dashboard")
       }
     }
 
@@ -67,7 +69,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   if (!isAdmin) {
-    return null
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400">
+        <p>Redirecting...</p>
+      </div>
+    )
   }
 
   return (
@@ -91,12 +97,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Logo */}
           <div className="p-4 border-b border-gray-800">
             <Link href="/admin" className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center flex-shrink-0">
-                <Zap className="h-6 w-6 text-white" />
-              </div>
+              <Logo size={40} showText={false} href="/admin" />
               {sidebarOpen && (
                 <div>
-                  <span className="font-bold text-lg">Voxara</span>
+                  <span className="font-bold text-lg">SocialGenie</span>
                   <span className="text-xs text-gray-500 block">Admin Panel</span>
                 </div>
               )}
@@ -106,8 +110,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-2">
             {navItems.map((item) => {
-              const isActive = pathname === item.href || 
-                (item.href !== "/admin" && pathname.startsWith(item.href))
+              const isActive = (pathname ?? '') === item.href || 
+                (item.href !== "/admin" && (pathname ?? '').startsWith(item.href))
               
               return (
                 <Link

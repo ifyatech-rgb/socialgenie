@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
-
-/** Shape of the profiles row we select (Supabase client may infer 'never', so we type it explicitly) */
-type ProfileRow = { role: string }
+import { createAdminClient } from "@/lib/supabase/server"
 
 export async function GET() {
   try {
@@ -14,9 +11,7 @@ export async function GET() {
       return NextResponse.json({ isAdmin: false }, { status: 401 })
     }
 
-    // Check if user is admin in database
-    const supabase = await createClient()
-
+    const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('profiles')
       .select('role')
@@ -24,17 +19,13 @@ export async function GET() {
       .single()
 
     if (error || !data) {
-      // For demo purposes, treat first user as admin
-      return NextResponse.json({ isAdmin: true })
+      return NextResponse.json({ isAdmin: false })
     }
 
-    const profile: ProfileRow = data as ProfileRow
-    return NextResponse.json({
-      isAdmin: (profile as any).role === 'admin',
-    })
+    const role = (data as Record<string, unknown>).role as string | undefined
+    return NextResponse.json({ isAdmin: role === 'admin' })
   } catch (error) {
     console.error('Admin check error:', error)
-    // For demo, allow access
-    return NextResponse.json({ isAdmin: true })
+    return NextResponse.json({ isAdmin: false })
   }
 }

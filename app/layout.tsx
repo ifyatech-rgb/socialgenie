@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "@/styles/design-system.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "sonner";
 
@@ -14,24 +15,24 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
-  title: "Voxara - Your Partner to Go Viral | AI Video Generation",
+  title: "SocialGenie - Your Partner to Go Viral | Complete AI Video Platform",
   description: "We analyze what's working for your competitors, clone your voice and face, then create viral content that dominates your niche. Start free today.",
   keywords: "AI video generator, content creation, social media automation, video cloning, voice cloning, viral content, competitor analysis",
-  authors: [{ name: "Voxara" }],
+  authors: [{ name: "SocialGenie" }],
   icons: {
     icon: "/logos/logo.png",
     shortcut: "/logos/logo.png",
     apple: "/logos/logo.png",
   },
   openGraph: {
-    title: "Voxara - Your Partner to Go Viral",
+    title: "SocialGenie - Your Partner to Go Viral",
     description: "We spy on your competitors. Then make you better. AI-powered viral video generation.",
     type: "website",
     images: ["/og-image.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Voxara - Your Partner to Go Viral",
+    title: "SocialGenie - Your Partner to Go Viral",
     description: "We spy on your competitors. Then make you better. AI-powered viral video generation.",
   },
 };

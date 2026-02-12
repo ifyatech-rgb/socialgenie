@@ -1,20 +1,21 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthUserEmail, authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createAdminClient } from "@/lib/supabase/server";
 
 /**
- * GET /api/user - Get current user data including credits
+ * GET /api/user - Get current user data including credits (Prisma + optional Supabase sync)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const userEmail = await getAuthUserEmail(request);
+    if (!userEmail) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { email: userEmail },
       select: {
         id: true,
         email: true,
@@ -41,9 +42,28 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Credits: prefer Prisma (source of truth). Use Supabase only if Prisma has no value.
+    let credits = user.credits != null ? user.credits : 0;
+    if (credits === 0) {
+      try {
+        const supabase = createAdminClient();
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("credits")
+          .eq("email", user.email)
+          .maybeSingle();
+        if (profile?.credits != null && typeof profile.credits === "number") {
+          credits = profile.credits;
+        }
+      } catch {
+        // keep Prisma value
+      }
+    }
+
     return NextResponse.json({
       user: {
         ...user,
+        credits,
         scriptsCount: user._count.scripts,
         videosCount: user._count.videos,
       },

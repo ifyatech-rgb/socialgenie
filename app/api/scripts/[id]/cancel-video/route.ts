@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,6 +18,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -28,7 +29,7 @@ export async function POST(
 
     const script = await prisma.script.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: user.id,
       },
     });
@@ -45,17 +46,16 @@ export async function POST(
       );
     }
 
-    // Note: D-ID API doesn't provide a way to cancel ongoing talks
-    // So we just reset the script status in our database
-    // The video may still complete on D-ID's side, but won't be saved
+    // HeyGen doesn't support cancelling in-flight jobs; we reset our DB state only.
+    // The video may still complete on HeyGen's side but won't be linked to this script.
 
-    // Reset script status
     const updatedScript = await prisma.script.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         status: "generated",
         generatedVideoUrl: null,
         generatedVideoId: null,
+        videoProvider: null,
         videoStatus: null,
       },
     });

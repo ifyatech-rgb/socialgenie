@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,6 +13,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -23,7 +24,7 @@ export async function GET(
 
     const video = await prisma.video.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: user.id,
       },
     });
@@ -44,7 +45,7 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -52,6 +53,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -62,7 +64,7 @@ export async function DELETE(
 
     const video = await prisma.video.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: user.id,
       },
     });
@@ -73,7 +75,7 @@ export async function DELETE(
 
     // Delete video record
     await prisma.video.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     // Try to delete the file

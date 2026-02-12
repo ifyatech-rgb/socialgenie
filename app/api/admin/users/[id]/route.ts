@@ -1,64 +1,110 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "../../../../../lib/auth"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/server"
+import { prisma } from "@/lib/prisma"
+import { requireAdmin } from "@/lib/admin-auth"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const admin = await requireAdmin()
+    if (!admin.ok) {
+      return NextResponse.json({ error: admin.error }, { status: admin.status })
     }
 
-    const supabase = await createClient()
-    const userId = params.id
+    const { id: profileId } = await context.params
+    const supabase = createAdminClient()
 
-    const { data: user, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", profileId)
       .single()
 
-    if (error) {
-      console.error('User fetch error:', error)
-      // Return demo user
-      return NextResponse.json({
-        user: {
-          id: userId,
-          full_name: 'Demo User',
-          email: 'demo@example.com',
-          created_at: new Date().toISOString(),
-          last_active_at: new Date().toISOString(),
-          credits: 50,
-          plan: 'creator',
-          role: 'user',
-          avatar_url: null
-        }
-      })
+    if (error || !profile) {
+      return NextResponse.json({ error: "User not found", user: null }, { status: 404 })
     }
 
-    return NextResponse.json({ user })
+    // Match Prisma User by email for scripts, videos, training videos
+    const prismaUser = await prisma.user.findUnique({
+      where: { email: (profile as { email: string }).email },
+      select: { id: true },
+    })
+
+    const [scripts, videosWithUrl, trainingVideos, activityRes] = await Promise.all([
+      prismaUser
+        ? prisma.script.findMany({
+            where: { userId: prismaUser.id },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              topic: true,
+              platform: true,
+              tone: true,
+              length: true,
+              content: true,
+              status: true,
+              generatedVideoUrl: true,
+              videoStatus: true,
+              createdAt: true,
+            },
+          })
+        : [],
+      prismaUser
+        ? prisma.script.findMany({
+            where: { userId: prismaUser.id, generatedVideoUrl: { not: null } },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              topic: true,
+              platform: true,
+              generatedVideoUrl: true,
+              createdAt: true,
+            },
+          })
+        : [],
+      prismaUser
+        ? prisma.trainingVideo.findMany({
+            where: { userId: prismaUser.id },
+            orderBy: { createdAt: "desc" },
+          })
+        : [],
+      supabase
+        .from("activity_logs")
+        .select("*")
+        .eq("user_id", profileId)
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ])
+
+    const activities = activityRes.data ?? []
+
+    return NextResponse.json({
+      user: profile,
+      scripts,
+      videos: videosWithUrl,
+      trainingVideos,
+      activities,
+    })
   } catch (error) {
-    console.error('Admin user detail error:', error)
+    console.error("Admin user detail error:", error)
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const admin = await requireAdmin()
+    if (!admin.ok) {
+      return NextResponse.json({ error: admin.error }, { status: admin.status })
     }
 
-    const supabase = await createClient()
-    const userId = params.id
+    const { id: userId } = await context.params
+    const supabase = createAdminClient()
     const body = await request.json()
 
     // Normalize role to lowercase: DB expects "admin" | "user"
@@ -96,16 +142,16 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const admin = await requireAdmin()
+    if (!admin.ok) {
+      return NextResponse.json({ error: admin.error }, { status: admin.status })
     }
 
-    const supabase = await createClient()
-    const userId = params.id
+    const { id: userId } = await context.params
+    const supabase = createAdminClient()
 
     const { error } = await supabase
       .from('profiles')

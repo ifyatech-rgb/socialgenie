@@ -1,31 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getAuthUserEmail } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateVideo, checkVideoStatus } from '@/lib/video-generation';
 
 // Cost per video generation (in credits)
 const VIDEO_GENERATION_COST = 5;
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/videos/generate
- * Generate a video from a script using D-ID or HeyGen
+ * Generate a video from a script using D-ID
  */
 export async function POST(request: NextRequest) {
+  console.log('[VideoGen] POST /api/videos/generate received');
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userEmail = await getAuthUserEmail(request);
+    console.log('[VideoGen] Auth:', userEmail ? `user ${userEmail}` : 'no user');
+
+    if (!userEmail) {
+      const cookieHeader = request.headers.get('cookie') ?? '';
+      const hasCookie = cookieHeader.includes('next-auth.session-token') || cookieHeader.includes('__Secure-next-auth.session-token');
+      const message = !hasCookie
+        ? 'Session not found. Use the same URL you used to sign in (e.g. http://localhost:3000), then try again.'
+        : 'Unauthorized';
+      const code = !hasCookie ? 'no_session_cookie' : 'session_invalid';
+      const res = NextResponse.json(
+        { error: message, code },
+        { status: 401 }
+      );
+      if (process.env.NODE_ENV === 'development') {
+        res.headers.set('X-Auth-Debug', !hasCookie ? 'no-cookie' : 'cookie-present-decode-failed');
+      }
+      return res;
     }
 
-    // Get user with credits and avatar (Express Avatar = avatarId + avatarVoiceId from D-ID video clone)
+    // Get user with credits and avatar (HeyGen avatar_id + voice from DB or use default)
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: { 
-        id: true, 
+      where: { email: userEmail },
+      select: {
+        id: true,
         credits: true,
-        avatarUrl: true,
         avatarId: true,
         avatarStatus: true,
         avatarVoiceId: true,
@@ -33,13 +48,15 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
+      console.log('[VideoGen] User not found for email');
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+    console.log('[VideoGen] User id:', user.id, 'credits:', user.credits);
 
     // Check credits
     if (user.credits < VIDEO_GENERATION_COST) {
       return NextResponse.json(
-        { 
+        {
           error: `Insufficient credits. Video generation costs ${VIDEO_GENERATION_COST} credits.`,
           creditsRequired: VIDEO_GENERATION_COST,
           creditsRemaining: user.credits,
@@ -49,16 +66,57 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const body = await request.json();
-    const { scriptId, provider = 'did', voiceId, avatarId, aspectRatio = '9:16' } = body;
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch (e) {
+      console.error('[VideoGen] Invalid JSON body:', e);
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+    const {
+      scriptId,
+      voiceId: bodyVoiceId,
+      useClonedVoice: bodyUseClonedVoice,
+      avatarId: bodyAvatarId,
+      aspectRatio = '9:16',
+      backgroundType,
+      backgroundValue,
+      backgroundColor,
+      backgroundImageUrl,
+      captionsEnabled: bodyCaptionsEnabled,
+      captionStyle,
+    } = body;
 
-    if (!scriptId) {
-      return NextResponse.json({ error: 'Script ID is required' }, { status: 400 });
+    const useClonedVoice = bodyUseClonedVoice === true;
+    const bodyVoiceIdStr = typeof bodyVoiceId === 'string' ? bodyVoiceId.trim() : undefined;
+
+    // Voice binding validation: cloned voice and voice ID are mutually exclusive
+    if (useClonedVoice && bodyVoiceIdStr) {
+      console.error('[VideoGen] Invalid: cannot use both cloned voice and voice ID');
+      return NextResponse.json(
+        { error: 'Invalid voice configuration: cannot use cloned voice with a selected voice ID.' },
+        { status: 400 }
+      );
+    }
+    if (!useClonedVoice && !bodyVoiceIdStr) {
+      console.error('[VideoGen] Stock avatar requires a voice selection');
+      return NextResponse.json(
+        { error: 'Stock avatar requires a voice selection. Please choose a voice.' },
+        { status: 400 }
+      );
+    }
+
+    const scriptIdTrimmed = typeof scriptId === 'string' ? scriptId.trim() : '';
+    if (!scriptIdTrimmed) {
+      return NextResponse.json(
+        { error: 'Script ID is required. Send scriptId in the request body when starting video generation.' },
+        { status: 400 }
+      );
     }
 
     // Get the script
     const script = await prisma.script.findUnique({
-      where: { id: scriptId },
+      where: { id: scriptIdTrimmed },
     });
 
     if (!script) {
@@ -67,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     // Verify ownership
     if (script.userId !== user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized', code: 'forbidden_script' }, { status: 403 });
     }
 
     // Check if video generation is already in progress
@@ -78,39 +136,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate video - use Express Avatar (video clone + cloned voice) when available
-    const hasExpressAvatar = user.avatarId && user.avatarStatus === 'ready' && user.avatarVoiceId;
-    const userAvatarUrl = !hasExpressAvatar && user.avatarUrl && user.avatarStatus === 'ready' ? user.avatarUrl : undefined;
+    // D-ID: prefer selected avatar from request; fallback to user's custom avatar
+    const heygenAvatarId =
+      typeof bodyAvatarId === 'string' && bodyAvatarId.trim()
+        ? bodyAvatarId.trim()
+        : user.avatarId && user.avatarStatus === 'ready'
+          ? user.avatarId
+          : undefined;
 
-    console.log(`[VideoGen] Starting generation for script ${scriptId} with ${provider}`);
-    if (hasExpressAvatar) {
-      console.log(`[VideoGen] Using Express Avatar (cloned face + voice): ${user.avatarId}`);
-    } else if (userAvatarUrl) {
-      console.log(`[VideoGen] Using custom avatar image: ${userAvatarUrl}`);
+    if (!heygenAvatarId) {
+      console.log('[VideoGen] No avatar ID: bodyAvatarId=%s user.avatarId=%s', bodyAvatarId, user.avatarId);
+      return NextResponse.json(
+        { error: 'Please select an avatar. If you have a custom avatar, ensure it is ready.' },
+        { status: 400 }
+      );
     }
+    console.log('[VideoGen] Avatar:', heygenAvatarId, 'useClonedVoice:', useClonedVoice, 'voiceId:', bodyVoiceIdStr ?? 'none');
 
+    const bgValue = backgroundImageUrl || backgroundValue || (backgroundColor ?? undefined);
     const result = await generateVideo({
       script: script.content,
       scriptId: script.id,
-      provider,
-      voiceId: hasExpressAvatar ? user.avatarVoiceId! : voiceId,
-      avatarId: hasExpressAvatar ? user.avatarId! : avatarId,
-      avatarUrl: userAvatarUrl,
-      expressVoiceId: hasExpressAvatar ? user.avatarVoiceId! : undefined,
+      provider: 'did',
+      useClonedVoice,
+      voiceId: useClonedVoice ? undefined : (bodyVoiceIdStr || 'en-US-JennyNeural'),
+      avatarId: heygenAvatarId,
       aspectRatio,
+      backgroundType: backgroundType || undefined,
+      backgroundValue: bgValue,
+      captionsEnabled: !!bodyCaptionsEnabled,
+      openCaption: bodyCaptionsEnabled ? captionStyle !== 'closed' : undefined,
     });
 
     if (!result.success) {
+      console.error('[VideoGen] generateVideo failed:', result.error);
+      const userMessage =
+        result.error?.includes('API key') || result.error?.includes('rejected')
+          ? result.error
+          : result.error || 'Video generation failed';
       return NextResponse.json(
-        { error: result.error || 'Video generation failed' },
+        { error: userMessage, code: 'generation_failed' },
         { status: 500 }
       );
     }
 
+    console.log('[VideoGen] D-ID clip created:', result.videoId, 'updating script and deducting credits');
+
     // Update script with video generation info and deduct credits atomically
     const [updatedScript, updatedUser] = await prisma.$transaction([
       prisma.script.update({
-        where: { id: scriptId },
+        where: { id: script.id },
         data: {
           generatedVideoId: result.videoId,
           videoProvider: result.provider,
@@ -131,7 +206,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         action: 'video.generation_started',
         details: JSON.stringify({
-          scriptId,
+          scriptId: script.id,
           videoId: result.videoId,
           provider: result.provider,
           creditsUsed: VIDEO_GENERATION_COST,
@@ -153,9 +228,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[VideoGen] Error:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error('[VideoGen] Error:', message, stack ?? '');
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: message, code: 'server_error' },
       { status: 500 }
     );
   }
@@ -167,22 +244,39 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userEmail = await getAuthUserEmail(request);
+    if (!userEmail) {
+      const hasCookie = (request.headers.get('cookie') ?? '').includes('next-auth.session-token') || (request.headers.get('cookie') ?? '').includes('__Secure-next-auth.session-token');
+      return NextResponse.json(
+        { error: hasCookie ? 'Unauthorized' : 'Session not found. Use the same URL you used to sign in.', code: hasCookie ? 'session_invalid' : 'no_session_cookie' },
+        { status: 401 }
+      );
     }
 
     const { searchParams } = new URL(request.url);
-    const scriptId = searchParams.get('scriptId');
+    const scriptId = searchParams.get('scriptId')?.trim();
 
     if (!scriptId) {
-      return NextResponse.json({ error: 'Script ID is required' }, { status: 400 });
+      const accept = request.headers.get('accept') ?? '';
+      const wantsHtml = accept.includes('text/html');
+      if (wantsHtml) {
+        const base = request.headers.get('x-forwarded-proto') && request.headers.get('x-forwarded-host')
+          ? `${request.headers.get('x-forwarded-proto')}://${request.headers.get('x-forwarded-host')}`
+          : process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
+        return new NextResponse(
+          `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="2;url=${base}/dashboard"><title>Video status</title></head><body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:1rem;background:#0f172a;color:#e2e8f0;"><p>This is an API endpoint. Redirecting you to the dashboard…</p><p><a href="${base}/dashboard" style="color:#818cf8;">Go to Dashboard</a></p></body></html>`,
+          { status: 400, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Script ID is required. Use ?scriptId=YOUR_SCRIPT_ID to check video generation status.' },
+        { status: 400 }
+      );
     }
 
     // Get user
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+      where: { email: userEmail },
       select: { id: true },
     });
 
@@ -201,7 +295,7 @@ export async function GET(request: NextRequest) {
 
     // Verify ownership
     if (script.userId !== user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized', code: 'forbidden_script' }, { status: 403 });
     }
 
     // If no video generation started
@@ -229,10 +323,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Check status with provider
+    // Check status with D-ID
     const statusResult = await checkVideoStatus(
       script.generatedVideoId,
-      script.videoProvider as 'did' | 'heygen'
+      'did'
     );
 
     // Update database based on status
@@ -267,18 +361,22 @@ export async function GET(request: NextRequest) {
     }
 
     if (statusResult.status === 'error') {
+      const errorMessage = typeof statusResult.error === 'string' 
+        ? statusResult.error 
+        : statusResult.error?.message || statusResult.error?.detail || 'Video generation failed';
+      
       await prisma.script.update({
         where: { id: scriptId },
         data: {
           videoStatus: 'failed',
-          videoError: statusResult.error,
+          videoError: errorMessage,
           status: 'error',
         },
       });
 
       return NextResponse.json({
         status: 'failed',
-        error: statusResult.error,
+        error: errorMessage,
         provider: script.videoProvider,
       });
     }

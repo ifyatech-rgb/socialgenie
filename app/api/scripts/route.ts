@@ -1,13 +1,12 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { getSessionForRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSessionForRequest(request);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "no_session" }, { status: 401 });
     }
 
     const scripts = await prisma.script.findMany({
@@ -23,6 +22,17 @@ export async function GET() {
         content: true,
         status: true,
         generatedVideoUrl: true,
+        generatedVideoId: true,
+        videoStatus: true,
+        videoProgress: true,
+        videoError: true,
+        projectName: true,
+        thumbnailUrl: true,
+        duration: true,
+        views: true,
+        lastViewedAt: true,
+        isFavorite: true,
+        tags: true,
         createdAt: true,
         updatedAt: true,
       },

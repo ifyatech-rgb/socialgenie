@@ -3,13 +3,15 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { anthropic, extractTextFromResponse, DEFAULT_MODEL } from '@/lib/anthropic'
+import { cleanScript } from '@/lib/scriptCleaner'
+import { formatScript } from '@/lib/scriptFormatter'
 
-// Types
+// Types - length is optional; if omitted, use 65s (50-80s) as fallback
 interface GenerateScriptRequest {
   topic: string
   platform: 'TikTok' | 'Instagram' | 'YouTube'
   tone: 'Educational' | 'Entertaining' | 'Motivational' | 'Controversial'
-  length: 30 | 60 | 90
+  length?: 30 | 60 | 90 | null
 }
 
 interface GenerateScriptResponse {
@@ -28,7 +30,7 @@ const PLATFORM_STYLES: Record<string, string> = {
   
   Instagram: `Visually descriptive, aesthetic-focused. Think lifestyle and aspiration.
     Energy: Confident but approachable. Mix of educational and entertaining.
-    Format: Story-driven with clear visual cues in brackets.`,
+    Format: Story-driven, conversational spoken text only. No bracketed directions.`,
   
   YouTube: `More educational depth, longer attention span expected.
     Energy: Authoritative but relatable. Can go deeper on topics.
@@ -47,6 +49,7 @@ const TONE_MODIFIERS: Record<string, string> = {
 const WORD_COUNTS: Record<number, { min: number; max: number }> = {
   30: { min: 60, max: 80 },
   60: { min: 130, max: 160 },
+  65: { min: 100, max: 160 },
   90: { min: 200, max: 240 },
 }
 
@@ -78,13 +81,16 @@ export async function POST(request: NextRequest) {
     const body: GenerateScriptRequest = await request.json()
     const { topic, platform, tone, length } = body
 
-    // Validate required fields
-    if (!topic || !platform || !tone || !length) {
+    // Validate required fields (length optional)
+    if (!topic || !platform || !tone) {
       return NextResponse.json(
-        { error: 'Missing required fields: topic, platform, tone, length' },
+        { error: 'Missing required fields: topic, platform, tone' },
         { status: 400 }
       )
     }
+
+    // Use provided length or default 65s (50-80s medium)
+    const effectiveLength = length && [30, 60, 90].includes(length) ? length : 65
 
     // Validate platform
     if (!['TikTok', 'Instagram', 'YouTube'].includes(platform)) {
@@ -102,14 +108,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate length
-    if (![30, 60, 90].includes(length)) {
-      return NextResponse.json(
-        { error: 'Invalid length. Must be 30, 60, or 90 seconds' },
-        { status: 400 }
-      )
-    }
-
     // 3. Check if Anthropic API key is configured
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
@@ -122,7 +120,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Build the prompts
-    const wordCount = WORD_COUNTS[length]
+    const wordCount = WORD_COUNTS[effectiveLength] || { min: 100, max: 160 }
     const platformStyle = PLATFORM_STYLES[platform]
     const toneModifier = TONE_MODIFIERS[tone]
 
@@ -136,7 +134,7 @@ Your scripts consistently go viral because you understand:
 
 You write scripts that feel authentic, never salesy, and always provide real value.`
 
-    const userPrompt = `Create a ${length}-second ${platform} video script about: "${topic}"
+    const userPrompt = `Create a ${effectiveLength}-second ${platform} video script about: "${topic}"
 
 **PLATFORM STYLE (${platform}):**
 ${platformStyle}
@@ -157,27 +155,27 @@ ${toneModifier}
 - Challenge a common belief
 - Create curiosity gap
 
-[11-${length - 20} seconds] THE METHOD/VALUE
+[11-${effectiveLength - 20} seconds] THE METHOD/VALUE
 - Deliver on the hook's promise
 - Use specific numbers and examples
 - Keep sentences short and punchy
 - Include "the reason this works is..." type explanations
 
-[${length - 19}-${length - 10} seconds] PROOF/CREDIBILITY
+[${effectiveLength - 19}-${effectiveLength - 10} seconds] PROOF/CREDIBILITY
 - Personal result or client result
 - Specific numbers
 - Before/after reference
 
-[${length - 9}-${length} seconds] CALL TO ACTION
+[${effectiveLength - 9}-${effectiveLength} seconds] CALL TO ACTION
 - Clear next step
 - Create urgency without being pushy
 - "Follow for more" or "Save this for later"
 
 **REQUIREMENTS:**
-- Word count: ${wordCount.min}-${wordCount.max} words (this is for a ${length}-second video)
+- Word count: ${wordCount.min}-${wordCount.max} words (this is for a ${effectiveLength}-second video)
 - Write in first person, conversational tone
 - Use specific numbers (not "a lot" or "many")
-- Include [VISUAL CUE] brackets for B-roll or text overlay suggestions
+- Output ONLY spoken words - no [VISUAL CUE], [CUT TO:], [SCENE:], or any bracketed directions. No em dashes (—); use regular hyphens (-) or commas.
 - No generic phrases
 
 **FORBIDDEN PHRASES (never use these):**
@@ -188,10 +186,10 @@ ${toneModifier}
 - "Let me explain"
 - "Without further ado"
 
-Now write the script. Start directly with the hook - no preamble.`
+Now write the script. Start directly with the hook - no preamble. Output pure narration text only; no stage directions, no brackets, no em dashes (—).`
 
     // 5. Call Claude API
-    console.log('Generating script with Claude...', { topic, platform, tone, length })
+    console.log('Generating script with Claude...', { topic, platform, tone, effectiveLength })
     
     const response = await anthropic.messages.create({
       model: DEFAULT_MODEL,
@@ -206,13 +204,15 @@ Now write the script. Start directly with the hook - no preamble.`
       ],
     })
 
-    const generatedScript = extractTextFromResponse(response)
+    let generatedScript = extractTextFromResponse(response)
 
     if (!generatedScript) {
       throw new Error('No script generated from Claude')
     }
 
-    console.log('Script generated successfully, saving to database...')
+    generatedScript = cleanScript(generatedScript.trim())
+    generatedScript = formatScript(generatedScript)
+    console.log('Script generated, cleaned, and formatted; saving to database...')
 
     // 6. Save to database
     const script = await prisma.script.create({
@@ -221,7 +221,7 @@ Now write the script. Start directly with the hook - no preamble.`
         topic,
         platform,
         tone,
-        length,
+        length: effectiveLength,
         content: generatedScript,
         status: 'generated',
       },

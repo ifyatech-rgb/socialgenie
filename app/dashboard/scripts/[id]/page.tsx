@@ -19,6 +19,7 @@ import {
   FileText,
   Zap,
   ChevronDown,
+  ChevronUp,
   ExternalLink,
   Loader2,
   X,
@@ -26,6 +27,9 @@ import {
   Brain,
   TrendingUp,
   Target,
+  User,
+  Palette,
+  Type,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -161,8 +165,30 @@ export default function ScriptViewPage() {
   const [deleting, setDeleting] = useState(false);
   const [generatingVideo, setGeneratingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState<string>('');
-  const [selectedVoice, setSelectedVoice] = useState('en-US-JennyNeural');
+  const [selectedVoice, setSelectedVoice] = useState('default');
+  const [selectedAvatar, setSelectedAvatar] = useState('');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
+  const [hasCustomAvatar, setHasCustomAvatar] = useState(false);
+  const [useClonedVoice, setUseClonedVoice] = useState(true);
+  const [backgroundType, setBackgroundType] = useState<'default' | 'color' | 'green_screen' | 'image'>('default');
+  const [backgroundColor, setBackgroundColor] = useState('#1f2937');
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const [captionStyle, setCaptionStyle] = useState<'bottom' | 'top' | 'open'>('open');
+  const [sectionBackgroundOpen, setSectionBackgroundOpen] = useState(false);
+  const [sectionCaptionsOpen, setSectionCaptionsOpen] = useState(false);
+  const [availableAvatars, setAvailableAvatars] = useState<any[]>([]);
+  const [availableVoices, setAvailableVoices] = useState<any[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  // HeyGen pre-made voices (for default avatar mode)
+  const HEYGEN_VOICES = [
+    { id: 'default', label: 'Default' },
+    { id: '1bd001e7e50f421d891986aad5c8xxxx', label: 'Sarah (Female, US)' },
+    { id: '001cc6d54eae4ca2b5fb16ca70e7xxxx', label: 'Michael (Male, US)' },
+    { id: 'en-US-JennyNeural', label: 'Jenny (Female, US)' },
+    { id: 'en-US-GuyNeural', label: 'Guy (Male, US)' },
+  ];
 
   useEffect(() => {
     const fetchScript = async () => {
@@ -188,6 +214,37 @@ export default function ScriptViewPage() {
       fetchScript();
     }
   }, [scriptId, router]);
+
+  useEffect(() => {
+    fetch('/api/avatar')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.hasAvatar && data?.avatarStatus === 'ready') setHasCustomAvatar(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch avatars and voices when modal opens
+  useEffect(() => {
+    if (showVideoModal && availableAvatars.length === 0) {
+      setLoadingOptions(true);
+      Promise.all([
+        fetch('/api/heygen/avatars').then((r) => (r.ok ? r.json() : { avatars: [] })),
+        fetch('/api/heygen/voices').then((r) => (r.ok ? r.json() : { voices: [] })),
+      ])
+        .then(([avatarData, voiceData]) => {
+          const avatars = avatarData.avatars || [];
+          const voices = voiceData.voices || [];
+          setAvailableAvatars(avatars);
+          setAvailableVoices(voices);
+          if (avatars.length > 0 && !selectedAvatar) {
+            setSelectedAvatar(avatars[0].avatar_id);
+          }
+        })
+        .catch(() => toast.error('Failed to load options'))
+        .finally(() => setLoadingOptions(false));
+    }
+  }, [showVideoModal]);
 
   const handleCopy = async () => {
     if (!script) return;
@@ -309,15 +366,20 @@ export default function ScriptViewPage() {
 
     try {
       // Start video generation
-      setVideoProgress('Connecting to AI video service...');
+      setVideoProgress('Connecting to HeyGen...');
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptId: script.id,
-          provider: 'did',
-          voiceId: selectedVoice,
+          avatarId: hasCustomAvatar ? undefined : selectedAvatar,
+          ...(hasCustomAvatar && { useClonedVoice }),
+          ...((!hasCustomAvatar || !useClonedVoice) && { voiceId: selectedVoice }),
           aspectRatio: selectedAspectRatio,
+          backgroundType: backgroundType === 'default' ? undefined : backgroundType,
+          backgroundValue: backgroundType === 'color' ? backgroundColor : backgroundType === 'image' ? backgroundImageUrl : undefined,
+          captionsEnabled,
+          captionStyle: captionsEnabled ? captionStyle : undefined,
         }),
       });
 
@@ -334,21 +396,27 @@ export default function ScriptViewPage() {
       }
 
       toast.success('Video generation started!');
-      setVideoProgress('Video is being generated...');
+      setVideoProgress('Processing... this may take 2–5 minutes.');
 
-      // Poll for status
+      const scriptIdForPoll = script?.id?.trim?.();
+      if (!scriptIdForPoll) {
+        toast.error('Invalid script; cannot poll status.');
+        setGeneratingVideo(false);
+        return;
+      }
+
+      // Poll for status every 10 seconds
       const pollStatus = async () => {
         let attempts = 0;
-        const maxAttempts = 60; // 5 minutes max (5s intervals)
+        const maxAttempts = 180; // 30 minutes (10s intervals)
 
         while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+          await new Promise(resolve => setTimeout(resolve, 10000));
           attempts++;
-
-          setVideoProgress(`Generating video... (${attempts * 5}s)`);
+          setVideoProgress(`Processing... (${attempts * 10}s elapsed)`);
 
           try {
-            const statusResponse = await fetch(`/api/videos/generate?scriptId=${script.id}`);
+            const statusResponse = await fetch(`/api/videos/generate?scriptId=${encodeURIComponent(scriptIdForPoll)}`);
             const statusData = await statusResponse.json();
 
             if (statusData.status === 'completed') {
@@ -534,6 +602,35 @@ export default function ScriptViewPage() {
             </div>
           </Card>
 
+          {/* Completed Video - show player + download */}
+          {script.generatedVideoUrl && (
+            <Card className="p-6 bg-green-50/50 border-green-200">
+              <div className="flex items-center gap-2 mb-4">
+                <Check className="h-5 w-5 text-green-600" />
+                <h3 className="font-semibold text-green-900">Your Video</h3>
+              </div>
+              <div className="rounded-xl overflow-hidden bg-black aspect-[9/16] max-h-[400px] mx-auto mb-4">
+                <video
+                  src={script.generatedVideoUrl}
+                  controls
+                  playsInline
+                  className="w-full h-full object-contain"
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={handleDownloadVideo}
+                leftIcon={<Download className="h-5 w-5" />}
+                className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+              >
+                Download Video
+              </Button>
+            </Card>
+          )}
+
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-3">
             <Button
@@ -666,7 +763,7 @@ export default function ScriptViewPage() {
               What's Next?
             </h3>
             <div className="space-y-3">
-              <Link href={`/dashboard/generate-video?script=${script.id}`}>
+              <Link href={`/dashboard/avatars?script=${script.id}`}>
                 <button className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/20 hover:from-primary/10 hover:to-secondary/10 transition-colors text-left">
                   <span className="font-medium text-gray-900">Create video with this script</span>
                   <ExternalLink className="h-4 w-4 text-primary" />
@@ -748,7 +845,7 @@ export default function ScriptViewPage() {
         isOpen={showVideoModal}
         onClose={() => setShowVideoModal(false)}
         title="Generate AI Video"
-        size="md"
+        size="lg"
       >
         <div className="space-y-6">
           {/* Info Banner */}
@@ -760,92 +857,294 @@ export default function ScriptViewPage() {
               <div>
                 <p className="font-medium text-violet-900">AI Avatar Video</p>
                 <p className="text-sm text-violet-700 mt-1">
-                  Transform your script into a professional video with an AI presenter. 
-                  This uses D-ID's advanced technology.
+                  Select an avatar and voice to create your professional video.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Voice Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Voice
-            </label>
-            <select
-              value={selectedVoice}
-              onChange={(e) => setSelectedVoice(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            >
-              <option value="en-US-JennyNeural">Jenny (Female, US)</option>
-              <option value="en-US-GuyNeural">Guy (Male, US)</option>
-              <option value="en-US-AriaNeural">Aria (Female, US)</option>
-              <option value="en-US-DavisNeural">Davis (Male, US)</option>
-              <option value="en-GB-SoniaNeural">Sonia (Female, UK)</option>
-              <option value="en-GB-RyanNeural">Ryan (Male, UK)</option>
-            </select>
-          </div>
-
-          {/* Aspect Ratio */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Video Format
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { value: '9:16', label: 'Portrait', desc: 'TikTok/Reels' },
-                { value: '16:9', label: 'Landscape', desc: 'YouTube' },
-                { value: '1:1', label: 'Square', desc: 'Instagram' },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setSelectedAspectRatio(option.value as typeof selectedAspectRatio)}
-                  className={cn(
-                    "p-3 rounded-xl border-2 text-center transition-all",
-                    selectedAspectRatio === option.value
-                      ? "border-violet-500 bg-violet-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  )}
-                >
-                  <p className="font-medium text-sm">{option.label}</p>
-                  <p className="text-xs text-gray-500">{option.desc}</p>
-                </button>
-              ))}
+          {loadingOptions ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
             </div>
-          </div>
+          ) : (
+            <>
+              {/* Avatar Selection */}
+              {!hasCustomAvatar && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Select Avatar
+                  </label>
+                  <div className="grid grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2">
+                    {availableAvatars.map((avatar) => (
+                      <button
+                        key={avatar.avatar_id}
+                        onClick={() => setSelectedAvatar(avatar.avatar_id)}
+                        className={cn(
+                          "relative rounded-xl border-2 overflow-hidden transition-all group",
+                          selectedAvatar === avatar.avatar_id
+                            ? "border-violet-500 ring-2 ring-violet-200"
+                            : "border-gray-200 hover:border-violet-300"
+                        )}
+                      >
+                        {avatar.preview_image_url ? (
+                          <img
+                            src={avatar.preview_image_url}
+                            alt={avatar.avatar_name}
+                            className="w-full h-24 object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-24 bg-gradient-to-br from-violet-100 to-violet-50 flex items-center justify-center">
+                            <User className="h-8 w-8 text-violet-400" />
+                          </div>
+                        )}
+                        <div className="p-2 bg-white">
+                          <p className="text-xs font-medium text-gray-900 truncate">
+                            {avatar.avatar_name}
+                          </p>
+                          {avatar.gender && (
+                            <p className="text-[10px] text-gray-500 capitalize">{avatar.gender}</p>
+                          )}
+                        </div>
+                        {selectedAvatar === avatar.avatar_id && (
+                          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-violet-500 flex items-center justify-center">
+                            <Check className="h-4 w-4 text-white" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Cost Info */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-amber-600" />
-                <span className="font-medium text-amber-900">Cost</span>
+              {/* Voice Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Voice
+                </label>
+                {hasCustomAvatar ? (
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useClonedVoice}
+                        onChange={(e) => setUseClonedVoice(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                      />
+                      <span className="text-sm text-gray-700">Use my cloned voice (from avatar)</span>
+                    </label>
+                    {useClonedVoice ? (
+                      <p className="px-4 py-3 rounded-xl border border-violet-200 bg-violet-50 text-violet-800 text-sm">
+                        Using your cloned voice from your avatar.
+                      </p>
+                    ) : (
+                      <select
+                        value={selectedVoice}
+                        onChange={(e) => setSelectedVoice(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      >
+                        {availableVoices.length > 0 ? (
+                          availableVoices.slice(0, 10).map((v) => (
+                            <option key={v.voice_id} value={v.voice_id}>
+                              {v.name || v.display_name || v.voice_id}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="default">Default</option>
+                        )}
+                      </select>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-500 mb-2">Select a pre-made voice</p>
+                    <select
+                      value={selectedVoice}
+                      onChange={(e) => setSelectedVoice(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    >
+                      {availableVoices.length > 0 ? (
+                        availableVoices.slice(0, 10).map((v) => (
+                          <option key={v.voice_id} value={v.voice_id}>
+                            {v.name || v.display_name || v.voice_id}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="default">Default</option>
+                      )}
+                    </select>
+                  </>
+                )}
               </div>
-              <span className="text-lg font-bold text-amber-900">5 credits</span>
-            </div>
-            <p className="text-sm text-amber-700 mt-1">
-              Video generation typically takes 1-3 minutes
-            </p>
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            <Button
-              variant="ghost"
-              className="flex-1"
-              onClick={() => setShowVideoModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              className="flex-1"
-              onClick={handleGenerateVideo}
-              leftIcon={<Sparkles className="h-5 w-5" />}
-            >
-              Generate Video
-            </Button>
-          </div>
+              {/* Background - collapsible */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSectionBackgroundOpen(!sectionBackgroundOpen)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left"
+                >
+                  <span className="flex items-center gap-2 font-medium text-gray-900">
+                    <Palette className="h-4 w-4 text-violet-600" />
+                    Background
+                  </span>
+                  {sectionBackgroundOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+                {sectionBackgroundOpen && (
+                  <div className="p-4 space-y-4 border-t border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700">Type</label>
+                    <select
+                      value={backgroundType}
+                      onChange={(e) => setBackgroundType(e.target.value as typeof backgroundType)}
+                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-violet-500"
+                    >
+                      <option value="default">Default (HeyGen)</option>
+                      <option value="color">Solid color</option>
+                      <option value="green_screen">Green screen (transparent)</option>
+                      <option value="image">Image URL</option>
+                    </select>
+                    {backgroundType === "color" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={backgroundColor}
+                            onChange={(e) => setBackgroundColor(e.target.value)}
+                            className="w-12 h-10 rounded border border-gray-200 cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={backgroundColor}
+                            onChange={(e) => setBackgroundColor(e.target.value)}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono"
+                            placeholder="#1f2937"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {backgroundType === "image" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
+                        <input
+                          type="url"
+                          value={backgroundImageUrl}
+                          onChange={(e) => setBackgroundImageUrl(e.target.value)}
+                          placeholder="https://example.com/background.jpg"
+                          className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-violet-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Captions - collapsible */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSectionCaptionsOpen(!sectionCaptionsOpen)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left"
+                >
+                  <span className="flex items-center gap-2 font-medium text-gray-900">
+                    <Type className="h-4 w-4 text-violet-600" />
+                    Captions & subtitles
+                  </span>
+                  {sectionCaptionsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+                {sectionCaptionsOpen && (
+                  <div className="p-4 space-y-4 border-t border-gray-200">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={captionsEnabled}
+                        onChange={(e) => setCaptionsEnabled(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                      />
+                      <span className="text-sm text-gray-700">Add captions/subtitles to video</span>
+                    </label>
+                    {captionsEnabled && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Caption style</label>
+                        <select
+                          value={captionStyle}
+                          onChange={(e) => setCaptionStyle(e.target.value as typeof captionStyle)}
+                          className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-violet-500"
+                        >
+                          <option value="open">Open (burned-in, always visible)</option>
+                          <option value="bottom">Bottom</option>
+                          <option value="top">Top</option>
+                          <option value="closed">Closed captions</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Aspect Ratio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Video Format
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { value: '9:16', label: 'Portrait', desc: 'TikTok/Reels' },
+                    { value: '16:9', label: 'Landscape', desc: 'YouTube' },
+                    { value: '1:1', label: 'Square', desc: 'Instagram' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSelectedAspectRatio(option.value as typeof selectedAspectRatio)}
+                      className={cn(
+                        "p-3 rounded-xl border-2 text-center transition-all",
+                        selectedAspectRatio === option.value
+                          ? "border-violet-500 bg-violet-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      )}
+                    >
+                      <p className="font-medium text-sm">{option.label}</p>
+                      <p className="text-xs text-gray-500">{option.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cost Info */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-amber-600" />
+                    <span className="font-medium text-amber-900">Cost</span>
+                  </div>
+                  <span className="text-lg font-bold text-amber-900">5 credits</span>
+                </div>
+                <p className="text-sm text-amber-700 mt-1">
+                  Video generation typically takes 5-10 minutes
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <Button
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={() => setShowVideoModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  onClick={handleGenerateVideo}
+                  disabled={!hasCustomAvatar && !selectedAvatar}
+                  leftIcon={<Sparkles className="h-5 w-5" />}
+                >
+                  Generate Video
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </motion.div>

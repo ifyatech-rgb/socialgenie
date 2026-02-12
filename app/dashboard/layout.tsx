@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Home,
   FileText,
-  Video,
+  FolderOpen,
   Settings,
   LogOut,
   ChevronDown,
@@ -23,9 +23,9 @@ import { Logo, LogoIcon } from "@/components/logo";
 // Simplified navigation - only 5 items
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home, exact: true },
-  { href: "/dashboard/avatar", label: "Create Avatar", icon: User },
+  { href: "/dashboard/avatars", label: "Avatars", icon: User },
   { href: "/dashboard/generate-script", label: "Generate Script", icon: FileText },
-  { href: "/dashboard/generate-video", label: "Generate Video", icon: Video },
+  { href: "/dashboard/projects", label: "Projects", icon: FolderOpen },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
@@ -72,15 +72,15 @@ export default function DashboardLayout({
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#f8f9fa] to-white">
         <div className="text-center">
           <div className="relative w-16 h-16 mx-auto mb-4">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-violet-600 to-violet-400 animate-spin opacity-30" />
-            <div className="absolute inset-2 rounded-full bg-white flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full bg-[linear-gradient(135deg,#667eea_0%,#764ba2_100%)] animate-spin opacity-30" />
+            <div className="absolute inset-2 rounded-full bg-white flex items-center justify-center shadow-[var(--sg-shadow-md)]">
               <LogoIcon size={32} className="animate-pulse" />
             </div>
           </div>
-          <p className="text-gray-600 font-medium">Loading...</p>
+          <p className="text-[var(--sg-text-secondary)] font-semibold">Loading...</p>
         </div>
       </div>
     );
@@ -88,12 +88,26 @@ export default function DashboardLayout({
 
   if (!session) return null;
 
-  const userName = session.user?.name || "Creator";
-  const userEmail = session.user?.email || "";
-  const userInitials = userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  const rawName = session.user?.name;
+  const userName =
+    typeof rawName === "string" && rawName.trim() && rawName !== "undefined"
+      ? rawName.trim()
+      : "Creator";
+  const rawEmail = session.user?.email;
+  const userEmail =
+    typeof rawEmail === "string" && rawEmail.trim() ? rawEmail.trim() : "";
+  const userInitials =
+    userName === "Creator" && userEmail
+      ? userEmail.slice(0, 2).toUpperCase()
+      : userName
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2) || "U";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-[#f8f9fa] to-white">
       {/* Mobile Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -107,35 +121,36 @@ export default function DashboardLayout({
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Sidebar - Framer style: glass, rounded, gradient accents */}
       <aside
         className={cn(
-          "fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 z-50",
+          "fixed left-0 top-0 h-full w-64 z-50",
           "transform transition-transform duration-300 ease-in-out",
           "lg:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          "sg-glass border-r border-[var(--sg-border)] shadow-[var(--sg-shadow-lg)]"
         )}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="p-5 border-b border-gray-200">
+          <div className="border-b border-[var(--sg-border)] p-6">
             <div className="flex items-center justify-between">
               <Logo size={32} showText={true} href="/dashboard" />
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-2 rounded-lg hover:bg-gray-100 lg:hidden"
+                className="rounded-[var(--sg-radius-md)] p-2 hover:bg-[var(--sg-bg-secondary)] lg:hidden transition-colors"
               >
-                <X className="h-5 w-5 text-gray-500" />
+                <X className="h-5 w-5 text-[var(--sg-text-secondary)]" />
               </button>
             </div>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 space-y-2 p-6">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = item.exact 
-                ? pathname === item.href 
+              const isActive = item.exact
+                ? pathname === item.href
                 : pathname?.startsWith(item.href);
 
               return (
@@ -143,70 +158,75 @@ export default function DashboardLayout({
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all min-h-[48px]",
+                    "flex min-h-[48px] items-center gap-3 rounded-[var(--sg-radius-full)] px-4 py-3 font-semibold text-sm transition-all duration-200",
                     isActive
-                      ? "bg-violet-600 text-white shadow-lg shadow-violet-200"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      ? "bg-[length:200%_200%] bg-[linear-gradient(135deg,#667eea_0%,#764ba2_100%)] text-white shadow-[0_8px_32px_rgba(102,126,234,0.3)]"
+                      : "text-[var(--sg-text-secondary)] hover:bg-[rgba(102,126,234,0.08)] hover:text-[#667eea]"
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className="text-[15px]">{item.label}</span>
+                  <span className="text-base">{item.label}</span>
                 </Link>
               );
             })}
           </nav>
 
           {/* Credits Display */}
-          <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+          <div className="border-t border-[var(--sg-border)] p-6">
+            <div className="flex items-center gap-3 rounded-[var(--sg-radius-xl)] border border-amber-200/80 bg-gradient-to-br from-amber-50 to-orange-50/80 px-4 py-3 shadow-[var(--sg-shadow-sm)]">
               <Coins className="h-5 w-5 text-amber-600" />
-              <div>
-                <p className="text-xs text-amber-700 font-medium">Credits Remaining</p>
-                <p className="text-lg font-bold text-amber-900">{credits ?? '...'}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-amber-700">Credits Remaining</p>
+                <p className="text-lg font-bold text-amber-900">{credits ?? "…"}</p>
               </div>
             </div>
+            <Link
+              href="/checkout"
+              className="mt-3 block text-center text-sm font-semibold text-[#667eea] hover:text-[#764ba2] transition-colors"
+            >
+              Subscribe — Get more credits
+            </Link>
           </div>
 
           {/* User Profile */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="border-t border-[var(--sg-border)] p-6">
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors"
+                className="flex w-full items-center gap-3 rounded-[var(--sg-radius-lg)] p-3 transition-colors hover:bg-[var(--sg-bg-secondary)]"
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-violet-400 flex items-center justify-center text-white font-semibold text-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#667eea_0%,#764ba2_100%)] font-semibold text-sm text-white shadow-[var(--sg-shadow-sm)]">
                   {userInitials}
                 </div>
                 <div className="flex-1 text-left min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
-                  <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+                  <p className="text-sm font-semibold text-[var(--sg-text-primary)] truncate">{userName}</p>
+                  <p className="text-xs text-[var(--sg-text-secondary)] truncate">{userEmail}</p>
                 </div>
                 <ChevronDown className={cn(
-                  "h-4 w-4 text-gray-400 transition-transform",
+                  "h-4 w-4 text-[var(--sg-text-light)] transition-transform",
                   userMenuOpen && "rotate-180"
                 )} />
               </button>
 
-              {/* User Menu Dropdown */}
               <AnimatePresence>
                 {userMenuOpen && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
-                    className="absolute bottom-full left-0 right-0 mb-2 py-2 bg-white rounded-xl border border-gray-200 shadow-xl"
+                    className="absolute bottom-full left-0 right-0 mb-2 py-2 sg-glass rounded-[var(--sg-radius-xl)] border border-[var(--sg-border)] shadow-[var(--sg-shadow-xl)]"
                   >
                     <Link
                       href="/dashboard/settings"
-                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 text-sm"
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--sg-bg-secondary)] text-[var(--sg-text-primary)] text-sm font-medium rounded-lg mx-2 transition-colors"
                     >
                       <User className="h-4 w-4" />
                       <span>Profile Settings</span>
                     </Link>
-                    <div className="border-t border-gray-100 my-1" />
+                    <div className="border-t border-[var(--sg-border)] my-1" />
                     <button
                       onClick={() => signOut({ callbackUrl: "/" })}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 text-red-600 text-sm"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 text-red-600 text-sm font-medium rounded-lg mx-2 transition-colors"
                     >
                       <LogOut className="h-4 w-4" />
                       <span>Log Out</span>
@@ -221,31 +241,29 @@ export default function DashboardLayout({
 
       {/* Main Content */}
       <div className="lg:ml-64">
-        {/* Mobile Header */}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-200 lg:hidden">
+        {/* Mobile Header - glass */}
+        <header className="sticky top-0 z-30 lg:hidden sg-glass border-b border-[var(--sg-border)]">
           <div className="flex items-center justify-between px-4 h-16">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg hover:bg-gray-100"
+              className="p-2 rounded-[var(--sg-radius-md)] hover:bg-[var(--sg-bg-secondary)] transition-colors"
             >
-              <Menu className="h-6 w-6 text-gray-600" />
+              <Menu className="h-6 w-6 text-[var(--sg-text-secondary)]" />
             </button>
             <Logo size={28} showText={true} />
-            <div className="w-10" /> {/* Spacer for centering */}
+            <div className="w-10" />
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="p-4 sm:p-6 lg:p-8">
-          <div className="max-w-5xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {children}
-            </motion.div>
-          </div>
+        <main className="min-h-screen p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            {children}
+          </motion.div>
         </main>
       </div>
     </div>

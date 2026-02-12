@@ -1,21 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { signIn } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { Eye, EyeOff, X } from "lucide-react"
+import { signIn, getCsrfToken } from "next-auth/react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Eye, EyeOff, X, CreditCard } from "lucide-react"
 import { toast } from "sonner"
 import { LogoIcon } from "@/components/logo"
 
 export default function SignInPage() {
   const router = useRouter()
-  const [isLogin, setIsLogin] = useState(false)
+  const searchParams = useSearchParams()
+  const prefilledEmail = searchParams.get("email")?.trim() ?? ""
+  const [isLogin, setIsLogin] = useState(true)
+  const [noAccountFound, setNoAccountFound] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [acceptEmails, setAcceptEmails] = useState(true)
-  
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -24,8 +28,16 @@ export default function SignInPage() {
     confirmPassword: "",
   })
 
+  // Pre-fill email when coming from sign-up redirect (?email=...)
+  useEffect(() => {
+    if (prefilledEmail) {
+      setFormData((prev) => ({ ...prev, email: prefilledEmail }))
+    }
+  }, [prefilledEmail])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
+    if (e.target.name === "email") setNoAccountFound(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,23 +50,100 @@ export default function SignInPage() {
       return
     }
 
+    const email = formData.email.trim().toLowerCase()
+    const password = formData.password
+
     try {
-      // Both login and signup use the same signIn method
-      // The credentials provider auto-creates users if they don't exist
-      const fullName = !isLogin ? `${formData.firstName} ${formData.lastName}`.trim() : undefined
-      
+      if (isLogin) {
+        // Step 1: Verify credentials with our API (so we can show clear errors)
+        const verifyRes = await fetch("/api/auth/verify-credentials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        })
+        const verifyData = await verifyRes.json().catch(() => ({}))
+        if (!verifyRes.ok || !verifyData.ok) {
+          const err = verifyData.error || "Login failed. Please try again."
+          if (err.includes("No account found")) {
+            setNoAccountFound(true)
+          }
+          toast.error(err)
+          setLoading(false)
+          return
+        }
+        // Step 2: Create session via NextAuth — use form submit so cookie is set and browser redirects
+        const csrfToken = await getCsrfToken()
+        const callbackUrl = typeof window !== "undefined" ? `${window.location.origin}/dashboard` : "/dashboard"
+        const form = document.createElement("form")
+        form.method = "POST"
+        form.action = "/api/auth/callback/credentials"
+        form.style.display = "none"
+        const fields: Record<string, string> = {
+          csrfToken: csrfToken ?? "",
+          email,
+          password,
+          callbackUrl,
+        }
+        for (const [name, value] of Object.entries(fields)) {
+          const input = document.createElement("input")
+          input.name = name
+          input.value = value
+          input.type = "hidden"
+          form.appendChild(input)
+        }
+        document.body.appendChild(form)
+        form.submit()
+        return
+      }
+
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim()
       const result = await signIn("credentials", {
-        email: formData.email,
-        password: formData.password,
-        name: fullName, // Pass name for signup - this syncs to Supabase
+        email,
+        password,
+        name: fullName,
         redirect: false,
+        callbackUrl: "/dashboard",
       })
 
       if (result?.error) {
-        const message = typeof result.error === "string" ? result.error : (isLogin ? "Invalid email or password" : "Failed to create account. Please try again.")
-        toast.error(message)
-      } else {
-        toast.success(isLogin ? "Welcome back!" : "Account created successfully!")
+        const message = typeof result.error === "string" ? result.error : "Failed to create account. Please try again."
+        if (message.includes("already registered")) {
+          setIsLogin(true)
+        } else {
+          toast.error(message)
+        }
+        setLoading(false)
+        return
+      }
+
+      if (result?.ok && result?.url) {
+        toast.success("Account created! Redirecting to secure checkout…")
+        window.location.assign(result.url)
+        return
+      }
+
+      {
+        // New signup: send to Stripe checkout for card (7-day trial + 10 credits), same as /auth/signup
+        toast.success("Account created! Redirecting to secure checkout…")
+        router.refresh()
+        const res = await fetch("/api/stripe/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formData.email }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (res.ok && data.url) {
+          window.location.href = data.url
+          return
+        }
+        if (res.status === 400 && (data.code === "EMAIL_EXISTS" || data.error?.includes("already registered"))) {
+          setIsLogin(true)
+          setLoading(false)
+          return
+        }
+        if (res.status === 503) {
+          toast.success("You get 10 free credits! Add your card in Settings later.")
+        }
         router.push("/dashboard")
       }
     } catch (error) {
@@ -112,7 +201,21 @@ export default function SignInPage() {
               <p className="text-gray-400 text-sm">
                 Your partner to go viral
               </p>
+              {!isLogin && (
+                <p className="mt-2 text-xs text-gray-500 max-w-xs mx-auto">
+                  After you create your account, you’ll be taken to a secure Stripe page to add your card for the 7-day free trial (10 free credits). No charge during the trial.
+                </p>
+              )}
             </div>
+
+            {noAccountFound && (
+              <div className="mb-6 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 text-sm flex flex-col gap-2">
+                <span>No account found. Please sign up first.</span>
+                <Link href="/auth/signup" className="font-medium text-white hover:underline inline-flex items-center gap-1">
+                  Don&apos;t have an account? Sign up
+                </Link>
+              </div>
+            )}
 
             {/* Google Sign In */}
             <button
@@ -279,11 +382,15 @@ export default function SignInPage() {
                 </div>
               )}
 
-              {/* Submit Button */}
+              {/* Submit Button: Log In or Start 7-Day Free Trial (no "Create Account") */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
+                className={
+                  isLogin
+                    ? "w-full py-3.5 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
+                    : "signup-trial-button w-full py-4 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30"
+                }
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -291,23 +398,45 @@ export default function SignInPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Processing...
+                    Processing…
                   </span>
+                ) : isLogin ? (
+                  "Log In"
                 ) : (
-                  isLogin ? "Log In" : "Create Account"
+                  <>
+                    <div className="button-content flex items-center justify-center gap-2">
+                      <CreditCard size={20} className="shrink-0" />
+                      <span>Start 7-Day Free Trial</span>
+                    </div>
+                    <small className="subtext text-white/90 text-sm font-normal">
+                      Then $19/month • Cancel anytime
+                    </small>
+                  </>
                 )}
               </button>
             </form>
 
             {/* Toggle login/signup */}
             <p className="text-center text-gray-400 text-sm mt-6">
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
-              <button
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-white hover:text-primary font-medium transition-colors"
-              >
-                {isLogin ? "Sign up" : "Log in"}
-              </button>
+              {isLogin ? (
+                <>
+                  Don&apos;t have an account?{" "}
+                  <Link href="/auth/signup" className="text-white hover:text-primary font-medium transition-colors">
+                    Sign up
+                  </Link>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setIsLogin(true)}
+                    className="text-white hover:text-primary font-medium transition-colors"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
             </p>
 
             {/* Terms */}

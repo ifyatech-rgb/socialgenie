@@ -4,19 +4,32 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { anthropic, extractTextFromResponse, DEFAULT_MODEL } from '@/lib/anthropic'
 import { researchNiche, formatResearchForPrompt, CompetitorResearch } from '@/lib/competitor-research'
+import { getViralScriptSystemPrompt } from '@/lib/viral-script-prompt'
+import { cleanScript } from '@/lib/scriptCleaner'
+import { formatScript, validateScriptStructure } from '@/lib/scriptFormatter'
 
 // Types
 interface GenerateScriptRequest {
   topic: string
   platform: 'TikTok' | 'Instagram' | 'YouTube'
   tone: 'Educational' | 'Entertaining' | 'Motivational' | 'Controversial'
-  length: 30 | 60 | 90
+  length?: 30 | 60 | 90 | null // Optional: if omitted, AI determines optimal length
   storyType?: 'personal' | 'expert' | 'contrarian' | 'casestudy' | 'auto'
   storyContext?: string
   targetAudience?: string
   specificPoints?: string
   hookStyle?: 'shocking' | 'contrarian' | 'warning' | 'secret' | 'question'
   niche?: string // User's content niche for research
+  enableResearch?: boolean // When true, run research and charge 3 credits
+  brandVoice?: string
+  ctaPreference?: string
+}
+
+// Dynamic length ranges: short (30-50s), medium (50-80s), long (80-120s)
+const LENGTH_PRESETS: Record<string, { length: number; minWords: number; maxWords: number }> = {
+  '30-50s': { length: 45, minWords: 60, maxWords: 100 },
+  '50-80s': { length: 65, minWords: 100, maxWords: 160 },
+  '80-120s': { length: 100, minWords: 160, maxWords: 240 },
 }
 
 // Platform-specific styles
@@ -92,11 +105,14 @@ const STORY_TYPE_INSTRUCTIONS: Record<string, string> = {
     Structure: Hook with results → The experiment setup → The findings → What this means for you → CTA`,
 }
 
-// Word counts by length
+// Word counts by length (fixed presets when user chooses)
 const WORD_COUNTS: Record<number, { min: number; max: number }> = {
   30: { min: 60, max: 80 },
+  45: { min: 60, max: 100 },
   60: { min: 130, max: 160 },
+  65: { min: 100, max: 160 },
   90: { min: 200, max: 240 },
+  100: { min: 160, max: 240 },
 }
 
 // Common niches to detect from topic
@@ -159,35 +175,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if user has enough credits
-    if (user.credits <= 0) {
-      return NextResponse.json(
-        { 
-          error: 'Insufficient credits. Please upgrade your plan to continue generating scripts.',
-          creditsRemaining: 0
-        },
-        { status: 402 }
-      )
-    }
-
     // 2. Parse request body
     const body: GenerateScriptRequest = await request.json()
-    const { 
-      topic, 
-      platform, 
-      tone, 
+    const {
+      topic,
+      platform,
+      tone,
       length,
       storyType,
       storyContext,
       targetAudience,
       specificPoints,
       hookStyle,
+      brandVoice,
+      ctaPreference,
     } = body
 
-    // Validate required fields
-    if (!topic || !platform || !tone || !length) {
+    // Validate required fields (length is optional - AI determines if not provided)
+    if (!topic || !platform || !tone) {
       return NextResponse.json(
-        { error: 'Missing required fields: topic, platform, tone, length' },
+        { error: 'Missing required fields: topic, platform, tone' },
         { status: 400 }
       )
     }
@@ -208,18 +215,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate length
-    if (![30, 60, 90].includes(length)) {
+    // Validate length if provided (30, 60, 90)
+    if (length != null && length !== undefined && ![30, 60, 90].includes(length)) {
       return NextResponse.json(
-        { error: 'Invalid length. Must be 30, 60, or 90 seconds' },
+        { error: 'Invalid length. Must be 30, 60, or 90 seconds, or omit to let AI decide' },
         { status: 400 }
+      )
+    }
+
+    // Check credits (3 for research, 1 for standard)
+    const enableResearch = body.enableResearch === true
+    const contentNicheForCheck = enableResearch ? (body.niche || extractNicheFromTopic(topic || '')) : null
+    const willUseResearch = enableResearch && !!contentNicheForCheck
+    const creditsNeeded = willUseResearch ? 3 : 1
+    if (user.credits < creditsNeeded) {
+      return NextResponse.json(
+        {
+          error: `Insufficient credits. Need ${creditsNeeded} (${willUseResearch ? 'research' : 'standard'}), have ${user.credits}. Please upgrade your plan.`,
+          creditsRemaining: user.credits
+        },
+        { status: 402 }
       )
     }
 
     // 3. Check if Anthropic API key is configured
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
-        { 
+        {
           error: 'Anthropic API key not configured. Please add ANTHROPIC_API_KEY to your .env file.',
           helpUrl: 'https://console.anthropic.com/settings/keys'
         },
@@ -227,13 +249,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 4. Perform competitor research (non-blocking)
+    // 4. Perform competitor research (only when enableResearch is true)
     let research: CompetitorResearch | null = null
     let researchUsed = false
-    
-    // Extract niche from topic or use provided niche
-    const contentNiche = body.niche || extractNicheFromTopic(topic)
-    
+    const contentNiche = enableResearch ? (body.niche || extractNicheFromTopic(topic)) : null
+
     if (contentNiche) {
       console.log(`[ScriptGen] Starting competitor research for niche: ${contentNiche}, platform: ${platform}`)
       try {
@@ -241,7 +261,7 @@ export async function POST(request: NextRequest) {
         if (research) {
           researchUsed = true
           console.log(`[ScriptGen] Research completed successfully`)
-        } else {
+    } else {
           console.log(`[ScriptGen] Research returned null, continuing without research`)
         }
       } catch (error) {
@@ -249,8 +269,122 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Build the enhanced prompts
-    const wordCount = WORD_COUNTS[length]
+    // ===== STEP 1: GENERATE VIRAL HOOK (50 frameworks → select best one) =====
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('📍 STEP 1: GENERATING VIRAL HOOK')
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+
+    const targetAudienceForHook = targetAudience || 'general social media users'
+    const toneForHook = tone || 'engaging and conversational'
+
+    const hookPrompt = `You're a proven copywriter who's written hooks that pulled millions of views. Study viral content in ${topic} and generate 50 customizable hook frameworks. Organize them by curiosity, controversy, storytelling, lists, and bold claims. Each hook should be designed to stop the scroll instantly. Attention first. Everything else follows.
+
+Context for this script:
+- Topic: ${topic}
+- Platform: ${platform}
+- Target Audience: ${targetAudienceForHook}
+- Tone: ${toneForHook}
+
+After generating the 50 frameworks, select THE BEST ONE for this specific ${platform} video about ${topic}.
+
+Output ONLY the best hook (1-2 sentences, 3-5 seconds when spoken).
+
+RULES:
+- NO visual directions [like this]
+- NO em dashes (—), use hyphens (-) or commas
+- NO explanations, just the hook
+- Must be spoken-word format
+- Output only the final selected hook`
+
+    let generatedHook: string
+    try {
+      console.log('🎣 Generating viral hook using proven frameworks...')
+      const hookResponse = await anthropic.messages.create({
+        model: DEFAULT_MODEL,
+        max_tokens: 300,
+        temperature: 0.7,
+        system: `You are a world-class copywriter who has written hooks that pulled millions of views.
+You understand viral content frameworks deeply.
+You generate 50 hook options using proven frameworks (curiosity, controversy, storytelling, lists, bold claims), then select the absolute best one.
+Output ONLY the final selected hook - no explanations, no labels, no framework list.`,
+        messages: [{ role: 'user', content: hookPrompt }],
+      })
+      generatedHook = extractTextFromResponse(hookResponse).trim()
+      generatedHook = generatedHook.replace(/\[.*?\]/g, '')
+      generatedHook = generatedHook.replace(/\(.*?\)/g, '')
+      generatedHook = generatedHook.replace(/—/g, '-')
+      generatedHook = generatedHook.replace(/^["']|["']$/g, '')
+      generatedHook = generatedHook.trim()
+      console.log('✅ Hook generated from 50 frameworks:')
+      console.log('   "' + generatedHook + '"')
+      console.log('   Length:', generatedHook.length, 'characters\n')
+    } catch (hookError) {
+      console.warn('[ScriptGen] Hook generation failed, main script will create its own hook:', hookError)
+      generatedHook = ''
+    }
+
+    // 5. Determine optimal length (AI analysis if not provided)
+    let effectiveLength: number
+    let optimalLengthLabel: string
+    let lengthReasoning = ''
+    const useDynamicLength = length == null || length === undefined
+
+    if (useDynamicLength) {
+      // AI analyzes topic to determine optimal length
+      console.log('[ScriptGen] Analyzing topic to determine optimal script length...')
+      const analysisPrompt = `Analyze this topic and determine the optimal script length for a ${platform} video.
+
+Topic: "${topic}"
+${body.specificPoints ? `Key points to cover: ${body.specificPoints}` : ''}
+Platform: ${platform}
+Style: ${tone}
+
+Based on the content scope, how long should this script be?
+
+Consider:
+- Topic complexity (simple tip vs detailed tutorial vs story)
+- Number of points to cover
+- Platform norms (${platform} typical length)
+- Whether it needs storytelling, explanation, or just quick facts
+
+Respond with ONLY a JSON object, no other text:
+{
+  "optimalLength": "30-50s" or "50-80s" or "80-120s",
+  "wordCount": "60-100" or "100-160" or "160-240",
+  "reasoning": "brief one-sentence explanation"
+}`
+
+      try {
+        const analysisResponse = await anthropic.messages.create({
+          model: DEFAULT_MODEL,
+          max_tokens: 200,
+          temperature: 0.3,
+          messages: [{ role: 'user', content: analysisPrompt }],
+        })
+        const analysisText = extractTextFromResponse(analysisResponse)
+        const cleaned = analysisText.replace(/```json/g, '').replace(/```/g, '').trim()
+        const parsed = JSON.parse(cleaned) as {
+          optimalLength?: string
+          wordCount?: string
+          reasoning?: string
+        }
+        const preset = LENGTH_PRESETS[parsed.optimalLength || '50-80s'] || LENGTH_PRESETS['50-80s']
+        effectiveLength = preset.length
+        optimalLengthLabel = parsed.optimalLength || '50-80s'
+        lengthReasoning = parsed.reasoning || ''
+        console.log(`[ScriptGen] Optimal length: ${optimalLengthLabel} (${effectiveLength}s) - ${lengthReasoning}`)
+      } catch (e) {
+        console.warn('[ScriptGen] Length analysis failed, using default 50-80s:', e)
+        const preset = LENGTH_PRESETS['50-80s']
+        effectiveLength = preset.length
+        optimalLengthLabel = '50-80s'
+      }
+    } else {
+      effectiveLength = length!
+      optimalLengthLabel = `${length}s`
+    }
+
+    const wordCount = WORD_COUNTS[effectiveLength] || { min: 100, max: 160 }
     const platformStyle = PLATFORM_STYLES[platform]
     const toneModifier = TONE_MODIFIERS[tone]
     const hookInstruction = hookStyle ? HOOK_STYLES[hookStyle] : 'Choose the most effective hook style for this topic and audience.'
@@ -258,126 +392,64 @@ export async function POST(request: NextRequest) {
     
     // Build research section for prompt
     const researchSection = research ? formatResearchForPrompt(research) : ''
+    const systemPrompt = getViralScriptSystemPrompt(researchUsed, researchSection)
 
-    const systemPrompt = `You are a viral content strategist who has generated over 1 billion views on social media. You specialize in creating scroll-stopping content that hooks viewers in the first 2 seconds and keeps them watching until the end.
+    const userPrompt = `## SCRIPT REQUEST
 
-Your scripts consistently go viral because you understand:
-- Pattern interrupts that stop the scroll
-- Psychological triggers that create engagement
-- Platform-specific algorithms and viewer behavior
-- The exact pacing and structure that maximizes watch time
-- How to make generic topics feel personal and unique
+**Topic:** ${topic}
 
-You write scripts that feel authentic, never salesy, and always provide real value.
+**Platform:** ${platform}
 
-CRITICAL: If the creator provides a personal story or unique angle, USE IT PROMINENTLY. This is what makes content go viral - authentic, personal, unique perspectives that generic AI can't replicate.
+**Tone:** ${tone}
 
-${researchUsed ? 'You have access to REAL-TIME competitor research below. Use these insights to create a script that OUTPERFORMS current viral content.' : ''}`
+**Duration:** ${effectiveLength} seconds
 
-    const userPrompt = `Create a ${length}-second ${platform} video script about: "${topic}"
+**Target word count:** ${wordCount.min}-${wordCount.max} words
 
-${researchSection}
+**Platform style:** ${platformStyle}
 
-**PLATFORM STYLE (${platform}):**
-${platformStyle}
+**Tone modifier:** ${toneModifier}
 
-**TONE (${tone}):**
-${toneModifier}
+${generatedHook ? `**MANDATORY HOOK (use this EXACT text for the 🎣 HOOK section):**
+"""
+${generatedHook}
+"""
+Then write 📝 CONTENT and 📢 CTA to flow naturally from this hook.` : `**Hook style:** ${hookInstruction}`}
 
 ${storyContext ? `
-**CREATOR'S STORY/CONTEXT:**
-The creator shared this unique angle:
+**CREATOR'S STORY/CONTEXT (USE PROMINENTLY):**
 """
 ${storyContext}
 """
 
 ${storyInstruction}
+` : '**No story provided** - Create a compelling angle based on what typically goes viral for this topic.'}
 
-IMPORTANT: This story is GOLD. Use it prominently throughout the script.
-Don't write a generic script - make this personal and unique using their specific details!
-` : `
-**NO STORY PROVIDED:**
-Create a compelling angle based on what typically goes viral for this topic.
-Add specific details and scenarios to make it feel authentic.
-`}
+${targetAudience ? `**Target audience:** ${targetAudience}` : ''}
 
-${targetAudience ? `
-**TARGET AUDIENCE:**
-${targetAudience}
-Tailor the language, examples, and references to resonate with this specific audience.
-` : ''}
+${specificPoints ? `**Points to include:** ${specificPoints}` : ''}
 
-${specificPoints ? `
-**MUST INCLUDE:**
-${specificPoints}
-Weave these points naturally into the script.
-` : ''}
+${brandVoice ? `**Brand voice:** ${brandVoice}` : ''}
 
-**HOOK STYLE:**
-${hookInstruction}
+${ctaPreference ? `**CTA preference:** ${ctaPreference} - Enhance using Format A, B, or C from the system prompt.` : ''}
 
-**SCRIPT STRUCTURE:**
-[0-3 seconds] HOOK
-- Stop the scroll immediately
-- Create instant curiosity or emotional reaction
-- Use the hook style specified above
+---
 
-[4-10 seconds] PATTERN INTERRUPT
-- Say something unexpected
-- Challenge a common belief OR
-- Create a curiosity gap
-- Make them think "wait, what?"
+Follow the complete system prompt. Create a ${effectiveLength}-second script that flows like one conversation from hook to CTA. Use specific numbers, pass the Competitor Test, and ensure the CTA scores 8/10+.
 
-[11-${length - 20} seconds] THE VALUE
-${storyContext ? '- Use their personal story/angle as the foundation' : '- Deliver compelling insights'}
-- Specific, actionable content
-- Keep sentences short and punchy
-- Include "the reason this works is..." explanations
-- Use specific numbers, not vague terms
-
-[${length - 19}-${length - 10} seconds] PROOF/CREDIBILITY
-${storyContext ? '- Reference their results or experience' : '- Add credibility with results or logic'}
-- Specific numbers or outcomes
-- Before/after or transformation reference
-
-[${length - 9}-${length} seconds] CALL TO ACTION
-- Clear next step
-- Create urgency without being pushy
-- Platform-appropriate CTA
-
-**REQUIREMENTS:**
-- Word count: ${wordCount.min}-${wordCount.max} words exactly
-- Write in first person, conversational tone
-- Use specific numbers (not "a lot" or "many")
-- Include [VISUAL CUE] brackets for B-roll or text overlay suggestions
-- Make it feel like a real person talking, not AI
-- No generic, cookie-cutter phrases
-
-**FORBIDDEN PHRASES (never use):**
-- "In this video"
-- "Hey guys" / "What's up guys"
-- "Don't forget to like and subscribe"
-- "So basically"
-- "Let me explain"
-- "Without further ado"
-- "In today's video"
-- "Quick tip"
-- "Game changer" (unless used ironically)
-
-${storyContext ? `
-**FINAL REMINDER:**
-The creator's story is what makes this unique. A generic script without their personal angle would be worth HALF as much. USE THEIR STORY PROMINENTLY.
-` : ''}
-
-Now write the script. Start directly with the hook - no preamble or labels.
-Output ONLY the script text, ready to read.`
+Output the script in the REQUIRED STRUCTURE:
+- Start with "🎣 HOOK:" on its own line, then 1-2 sentences (attention grabber).
+- Then "📝 CONTENT:" on its own line, then main content in SHORT PARAGRAPHS (2-4 sentences each, blank line between paragraphs).
+- End with "📢 CTA:" on its own line, then 2-3 sentences (clear call-to-action).
+Use only pure spoken words under each section. No [bracketed] directions, no em dashes (—), no (PAUSE) or parentheticals. Use regular hyphens (-) or commas.`
 
     // 6. Call Claude API
     console.log('Generating enhanced script with Claude...', { 
       topic, 
       platform, 
       tone, 
-      length,
+      effectiveLength,
+      useDynamicLength,
       hasStoryContext: !!storyContext,
       storyType,
       researchUsed,
@@ -396,15 +468,25 @@ Output ONLY the script text, ready to read.`
       ],
     })
 
-    const generatedScript = extractTextFromResponse(response)
+    let generatedScript = extractTextFromResponse(response)
 
     if (!generatedScript) {
       throw new Error('No script generated from Claude')
     }
 
-    console.log('Script generated successfully, saving to database...')
+    // Post-process: clean visual directions, then ensure structured format
+    generatedScript = cleanScript(generatedScript.trim())
+    generatedScript = formatScript(generatedScript)
+    const validation = validateScriptStructure(generatedScript)
+    if (!validation.isValid) {
+      console.warn('[ScriptGen] Structure incomplete:', validation.missingParts, '- script saved as-is')
+    } else {
+      console.log('[ScriptGen] Structure validated: Hook, Content, CTA present')
+    }
+    console.log('Script generated, cleaned, and formatted; saving to database...')
 
     // 7. Save script, deduct credit, and log activity in a transaction
+    const creditsToDeduct = researchUsed ? 3 : 1
     const [script, updatedUser] = await prisma.$transaction([
       // Create the script
       prisma.script.create({
@@ -413,34 +495,36 @@ Output ONLY the script text, ready to read.`
           topic,
           platform,
           tone,
-          length,
+          length: effectiveLength,
           content: generatedScript,
           status: 'generated',
         },
       }),
-      // Deduct 1 credit from user
+      // Deduct credits (3 for research, 1 for standard)
       prisma.user.update({
         where: { id: user.id },
-        data: { credits: { decrement: 1 } },
+        data: { credits: { decrement: creditsToDeduct } },
         select: { credits: true },
       }),
     ])
 
     // Log activity (non-blocking)
     prisma.activity.create({
-      data: {
-        userId: user.id,
-        action: 'script.generated',
-        details: JSON.stringify({
-          scriptId: script.id,
+        data: {
+          userId: user.id,
+          action: 'script.generated',
+          details: JSON.stringify({
+            scriptId: script.id,
           topic,
           platform,
           tone,
-          length,
+          length: effectiveLength,
           researchUsed,
-        }),
-      },
+          }),
+        },
     }).catch(err => console.error('Failed to log activity:', err))
+
+    const actualWordCount = generatedScript.split(/\s+/).filter(Boolean).length
 
     // 8. Return success response
     return NextResponse.json({
@@ -457,6 +541,13 @@ Output ONLY the script text, ready to read.`
       },
       model: DEFAULT_MODEL,
       creditsRemaining: updatedUser.credits,
+      metadata: {
+        optimalLength: useDynamicLength ? optimalLengthLabel : `${script.length}s`,
+        targetWordCount: `${wordCount.min}-${wordCount.max}`,
+        actualWordCount,
+        lengthReasoning: useDynamicLength ? lengthReasoning : undefined,
+        lengthOptimized: useDynamicLength,
+      },
       research: researchUsed ? {
         used: true,
         niche: contentNiche,

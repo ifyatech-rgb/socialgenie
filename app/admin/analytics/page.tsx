@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { 
   TrendingUp, TrendingDown, Users, FileText, Video, Activity,
-  Calendar
+  Calendar, BarChart3
 } from "lucide-react"
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
@@ -53,51 +53,35 @@ export default function AdminAnalyticsPage() {
   async function fetchAnalytics() {
     setLoading(true)
     try {
-      // In production, fetch from API
-      // const res = await fetch(`/api/admin/analytics?range=${dateRange}`)
-      // const data = await res.json()
-      
-      // Demo data
-      const demoData: AnalyticsData = {
-        userGrowth: Array.from({ length: 30 }, (_, i) => ({
-          date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          users: Math.floor(Math.random() * 30) + 10,
-          cumulative: 1000 + (i * 25) + Math.floor(Math.random() * 50)
-        })),
-        contentCreation: Array.from({ length: 7 }, (_, i) => ({
-          date: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
-          scripts: Math.floor(Math.random() * 200) + 100,
-          videos: Math.floor(Math.random() * 80) + 20
-        })),
-        platformDistribution: [
-          { name: 'TikTok', value: 45 },
-          { name: 'Instagram', value: 30 },
-          { name: 'YouTube', value: 20 },
-          { name: 'Other', value: 5 },
-        ],
-        hourlyActivity: Array.from({ length: 24 }, (_, i) => ({
-          hour: `${i}:00`,
-          activity: Math.floor(Math.random() * 100) + (i >= 9 && i <= 21 ? 50 : 10)
-        })),
-        metrics: {
-          totalUsers: 12847,
-          totalUsersChange: 12.5,
-          activeUsers: 8934,
-          activeUsersChange: 8.3,
-          totalScripts: 58472,
-          totalScriptsChange: 23.1,
-          totalVideos: 18923,
-          totalVideosChange: 15.7,
-          avgScriptsPerUser: 4.5,
-          avgScriptsChange: 5.2,
-          conversionRate: 3.8,
-          conversionChange: 0.5,
-        }
+      const res = await fetch(`/api/admin/analytics?range=${dateRange}`)
+      const json = await res.json()
+      if (res.ok && json.metrics != null) {
+        setData(json)
+      } else {
+        setData({
+          userGrowth: [],
+          contentCreation: [],
+          platformDistribution: [],
+          hourlyActivity: Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, activity: 0 })),
+          metrics: {
+            totalUsers: 0,
+            totalUsersChange: 0,
+            activeUsers: 0,
+            activeUsersChange: 0,
+            totalScripts: 0,
+            totalScriptsChange: 0,
+            totalVideos: 0,
+            totalVideosChange: 0,
+            avgScriptsPerUser: 0,
+            avgScriptsChange: 0,
+            conversionRate: 0,
+            conversionChange: 0,
+          },
+        })
       }
-      
-      setData(demoData)
     } catch (error) {
       console.error('Failed to fetch analytics:', error)
+      setData(null)
     } finally {
       setLoading(false)
     }
@@ -109,7 +93,7 @@ export default function AdminAnalyticsPage() {
     return num.toString()
   }
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse">
@@ -122,6 +106,24 @@ export default function AdminAnalyticsPage() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <BarChart3 className="h-12 w-12 text-red-400/80 mb-4" />
+          <p className="text-white font-medium mb-1">Failed to load analytics</p>
+          <p className="text-gray-400 text-sm mb-4">Please try again.</p>
+          <button
+            onClick={() => fetchAnalytics()}
+            className="px-4 py-2 bg-primary hover:bg-primary/90 rounded-xl text-white font-medium transition-colors"
+          >
+            Retry
+          </button>
         </div>
       </div>
     )
@@ -256,31 +258,38 @@ export default function AdminAnalyticsPage() {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Platform Distribution</h2>
           <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data.platformDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={70}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {data.platformDistribution.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1F2937', 
-                    border: '1px solid #374151',
-                    borderRadius: '8px',
-                    color: '#fff'
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {data.platformDistribution.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500 text-sm">
+                <p>No platform data yet</p>
+                <p className="text-xs mt-1">Distribution will show when scripts have platform data</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data.platformDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={70}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {data.platformDistribution.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1F2937",
+                      border: "1px solid #374151",
+                      borderRadius: "8px",
+                      color: "#fff",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
           <div className="flex flex-wrap justify-center gap-3 mt-4">
             {data.platformDistribution.map((item, idx) => (

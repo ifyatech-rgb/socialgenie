@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useState } from "react";
+import { forwardRef, useState, useId } from "react";
 import { cn } from "@/lib/utils";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 
@@ -31,12 +31,15 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       disabled,
       value,
       onChange,
+      id: idProp,
       ...props
     },
     ref
   ) => {
     const [showPassword, setShowPassword] = useState(false);
     const [charCount, setCharCount] = useState(String(value || "").length);
+    const generatedId = useId();
+    const inputId = idProp ?? generatedId;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setCharCount(e.target.value.length);
@@ -48,7 +51,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-semibold text-gray-900 mb-2">
+          <label htmlFor={inputId} className="block text-sm font-semibold text-gray-900 mb-2">
             {label}
           </label>
         )}
@@ -59,6 +62,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
           <input
+            id={inputId}
             ref={ref}
             type={inputType}
             disabled={disabled}

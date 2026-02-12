@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Navbar } from "@/components/navbar";
+import { Logo } from "@/components/logo";
 
 export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
   /** Use minimal header (logo + nav) or full navbar. Default: true (full navbar) */
@@ -35,11 +35,7 @@ export function Header({
           )}
         >
           {children ?? (
-            <>
-              <Link href="/" className="flex items-center gap-2 font-semibold text-gray-900">
-                <span className="text-lg">Voxara</span>
-              </Link>
-            </>
+            <Logo size={36} showText={true} href="/" />
           )}
         </div>
       </header>

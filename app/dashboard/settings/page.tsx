@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   User,
@@ -263,8 +264,12 @@ export default function SettingsPage() {
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-gray-900 capitalize">{userData?.plan} Plan</p>
-                  <p className="text-sm text-gray-500">Your current subscription</p>
+                  <p className="font-semibold text-gray-900">
+                    {(userData?.plan === "starter" ? "Starter" : userData?.plan === "trial" ? "7-Day Trial" : "Starter")} Plan
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {userData?.plan === "starter" ? "$19/month • 50 scripts/month" : "Try free for 7 days, then $19/month"}
+                  </p>
                 </div>
                 <span className="px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-sm font-medium">
                   Active
@@ -277,24 +282,21 @@ export default function SettingsPage() {
               <h3 className="font-semibold text-gray-900">Credit Costs</h3>
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-600">Generate Script</span>
+                  <span className="text-gray-600">Generate Viral Script</span>
                   <span className="font-semibold text-gray-900">1 credit</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-600">Generate Video</span>
-                  <span className="font-semibold text-gray-900">5 credits</span>
                 </div>
               </div>
             </div>
 
-            {/* Buy Credits (Coming Soon) */}
-            <button
-              disabled
-              className="w-full py-3 rounded-xl bg-gray-100 text-gray-400 font-semibold cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <CreditCard className="h-5 w-5" />
-              Buy More Credits (Coming Soon)
-            </button>
+            {/* Upgrade CTA */}
+            <Link href="/checkout">
+              <button
+                className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold hover:bg-violet-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <CreditCard className="h-5 w-5" />
+                Upgrade to $19/month
+              </button>
+            </Link>
           </div>
         )}
 

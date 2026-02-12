@@ -82,6 +82,38 @@ export interface Database {
           last_active_at?: string | null
         }
       }
+      avatars: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          did_actor_id: string
+          status: string
+          thumbnail_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          did_actor_id: string
+          status?: string
+          thumbnail_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          did_actor_id?: string
+          status?: string
+          thumbnail_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       videos: {
         Row: {
           id: string

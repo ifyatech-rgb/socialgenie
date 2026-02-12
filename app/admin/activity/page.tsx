@@ -83,8 +83,8 @@ export default function AdminActivityPage() {
 
   useEffect(() => {
     fetchActivity()
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchActivity, 30000)
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(fetchActivity, 10000)
     return () => clearInterval(interval)
   }, [fetchActivity])
 
@@ -183,7 +183,7 @@ export default function AdminActivityPage() {
       {/* Live Indicator */}
       <div className="flex items-center gap-2 text-sm text-gray-400">
         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-        Live • Auto-refreshing every 30 seconds
+        Live • Auto-refreshing every 10 seconds
       </div>
 
       {/* Filters */}
@@ -246,8 +246,12 @@ export default function AdminActivityPage() {
                 ))
               ) : activities.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
-                    No activity found
+                  <td colSpan={6} className="p-12 text-center">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <Activity className="h-12 w-12 mb-3 opacity-50" />
+                      <p className="font-medium">No activity yet</p>
+                      <p className="text-sm mt-1">Activity will appear here when users start using the platform.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (

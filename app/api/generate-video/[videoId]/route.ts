@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getTalkStatus } from "@/lib/d-id";
+import { checkVideoStatus } from "@/lib/video-generation";
 
 /**
  * GET /api/generate-video/[videoId]
- * 
- * Check the status of a D-ID video generation
+ *
+ * Check the status of a HeyGen video generation
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { videoId: string } }
+  context: { params: Promise<{ videoId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -19,38 +19,29 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if D-ID API key is configured
-    if (!process.env.DID_API_KEY) {
+    if (!process.env.HEYGEN_API_KEY) {
       return NextResponse.json(
-        { error: "D-ID API key not configured" },
+        { error: "HeyGen API key not configured" },
         { status: 500 }
       );
     }
 
-    const { videoId } = params;
+    const { videoId } = await context.params;
+    const status = await checkVideoStatus(videoId, "heygen");
 
-    // Get status from D-ID
-    const status = await getTalkStatus(videoId);
-
-    // Get scriptId from query params if provided
     const searchParams = request.nextUrl.searchParams;
     const scriptId = searchParams.get("scriptId");
 
-    // If video is done and we have a scriptId, update the script record
-    if (status.status === "done" && status.result_url && scriptId) {
+    if (status.status === "done" && status.resultUrl && scriptId) {
       const user = await prisma.user.findUnique({
         where: { email: session.user.email },
       });
-
       if (user) {
         await prisma.script.update({
-          where: { 
-            id: scriptId,
-            userId: user.id,
-          },
+          where: { id: scriptId, userId: user.id },
           data: {
             status: "video_ready",
-            generatedVideoUrl: status.result_url ?? undefined,
+            generatedVideoUrl: status.resultUrl ?? undefined,
             videoStatus: "completed",
           },
         });
@@ -60,15 +51,14 @@ export async function GET(
     return NextResponse.json({
       videoId,
       status: status.status,
-      videoUrl: status.result_url || null,
+      videoUrl: status.resultUrl ?? null,
       isReady: status.status === "done",
-      error: status.error || null,
+      error: status.error ?? null,
     });
-
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Video status check error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to check video status" },
+      { error: error instanceof Error ? error.message : "Failed to check video status" },
       { status: 500 }
     );
   }

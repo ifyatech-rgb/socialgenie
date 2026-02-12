@@ -5,7 +5,6 @@ import {
   Users, FileText, Video, DollarSign, TrendingUp, TrendingDown,
   UserPlus, LogIn, Eye, Download, Activity
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, Area, AreaChart 
@@ -22,6 +21,11 @@ interface Stats {
   recentActivity: any[]
   topUsers: any[]
   chartData: { date: string; signups: number }[]
+  growth?: {
+    newUsersChange: number
+    scriptsTodayChange: number
+    videosTodayChange: number
+  }
 }
 
 const actionIcons: Record<string, any> = {
@@ -32,6 +36,7 @@ const actionIcons: Record<string, any> = {
   'video.requested': Video,
   'video.completed': Video,
   'video.downloaded': Download,
+  'avatar.created': Video,
 }
 
 const actionColors: Record<string, string> = {
@@ -42,26 +47,61 @@ const actionColors: Record<string, string> = {
   'video.requested': 'text-pink-400',
   'video.completed': 'text-green-400',
   'video.downloaded': 'text-yellow-400',
+  'avatar.created': 'text-indigo-400',
 }
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
     fetchStats()
-    // Auto-refresh every 30 seconds
+    // Auto-refresh every 30 seconds (stats + activity)
     const interval = setInterval(fetchStats, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [mounted])
 
   async function fetchStats() {
     try {
       const res = await fetch('/api/admin/stats')
       const data = await res.json()
-      setStats(data)
+      if (res.ok) {
+        setStats(data)
+      } else {
+        setStats({
+          totalUsers: 0,
+          newUsersThisWeek: 0,
+          totalScripts: 0,
+          scriptsToday: 0,
+          totalVideos: 0,
+          videosToday: 0,
+          activeUsers: 0,
+          recentActivity: [],
+          topUsers: [],
+          chartData: [],
+        })
+      }
     } catch (error) {
       console.error('Failed to fetch stats:', error)
+      setStats({
+        totalUsers: 0,
+        newUsersThisWeek: 0,
+        totalScripts: 0,
+        scriptsToday: 0,
+        totalVideos: 0,
+        videosToday: 0,
+        activeUsers: 0,
+        recentActivity: [],
+        topUsers: [],
+        chartData: [],
+      })
     } finally {
       setLoading(false)
     }
@@ -96,11 +136,12 @@ export default function AdminDashboard() {
       'video.requested': 'requested a video',
       'video.completed': 'completed a video',
       'video.downloaded': 'downloaded a video',
+      'avatar.created': 'created their avatar',
     }
     return labels[action] || action
   }
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="space-y-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -116,14 +157,33 @@ export default function AdminDashboard() {
     )
   }
 
-  if (!stats) return null
+  if (!stats) {
+    return (
+      <div className="flex items-center justify-center py-16 text-gray-400">
+        <p>Loading dashboard...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">
-      {/* Page Title */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard Overview</h1>
-        <p className="text-gray-400 mt-1">Welcome back! Here's what's happening.</p>
+      {/* Page Title + Error */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard Overview</h1>
+          <p className="text-gray-400 mt-1">Welcome back! Here's what's happening.</p>
+        </div>
+        {error && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400">
+            <span className="text-sm">{error}</span>
+            <button
+              onClick={() => { setLoading(true); fetchStats(); }}
+              className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-sm font-medium transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -134,15 +194,17 @@ export default function AdminDashboard() {
             <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
               <Users className="h-6 w-6 text-blue-400" />
             </div>
-            <div className="flex items-center gap-1 text-green-400 text-sm">
-              <TrendingUp className="h-4 w-4" />
-              <span>+{stats.newUsersThisWeek}</span>
-            </div>
+            {stats.growth?.newUsersChange !== undefined && stats.growth.newUsersChange !== 0 && (
+              <div className={`flex items-center gap-1 text-sm ${stats.growth.newUsersChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {stats.growth.newUsersChange >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                <span>{stats.growth.newUsersChange >= 0 ? '+' : ''}{stats.growth.newUsersChange}%</span>
+              </div>
+            )}
           </div>
           <div className="text-3xl font-bold text-white mb-1">
             {formatNumber(stats.totalUsers)}
           </div>
-          <p className="text-gray-400 text-sm">Total Users</p>
+          <p className="text-gray-400 text-sm">Total Users {stats.newUsersThisWeek > 0 && `(+${stats.newUsersThisWeek} this week)`}</p>
         </div>
 
         {/* Scripts Generated */}
@@ -151,15 +213,16 @@ export default function AdminDashboard() {
             <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
               <FileText className="h-6 w-6 text-purple-400" />
             </div>
-            <div className="flex items-center gap-1 text-green-400 text-sm">
-              <TrendingUp className="h-4 w-4" />
-              <span>{stats.scriptsToday} today</span>
-            </div>
+            {(stats.growth?.scriptsTodayChange !== undefined && stats.growth.scriptsTodayChange !== 0) && (
+              <span className={`text-sm ${stats.growth.scriptsTodayChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {stats.growth.scriptsTodayChange >= 0 ? '+' : ''}{stats.growth.scriptsTodayChange}% today
+              </span>
+            )}
           </div>
           <div className="text-3xl font-bold text-white mb-1">
             {formatNumber(stats.totalScripts)}
           </div>
-          <p className="text-gray-400 text-sm">Scripts Generated</p>
+          <p className="text-gray-400 text-sm">Scripts Generated {stats.scriptsToday > 0 && `(${stats.scriptsToday} today)`}</p>
         </div>
 
         {/* Videos Created */}
@@ -168,15 +231,16 @@ export default function AdminDashboard() {
             <div className="w-12 h-12 bg-pink-500/10 rounded-xl flex items-center justify-center">
               <Video className="h-6 w-6 text-pink-400" />
             </div>
-            <div className="flex items-center gap-1 text-green-400 text-sm">
-              <TrendingUp className="h-4 w-4" />
-              <span>{stats.videosToday} today</span>
-            </div>
+            {(stats.growth?.videosTodayChange !== undefined && stats.growth.videosTodayChange !== 0) && (
+              <span className={`text-sm ${stats.growth.videosTodayChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {stats.growth.videosTodayChange >= 0 ? '+' : ''}{stats.growth.videosTodayChange}% today
+              </span>
+            )}
           </div>
           <div className="text-3xl font-bold text-white mb-1">
             {formatNumber(stats.totalVideos)}
           </div>
-          <p className="text-gray-400 text-sm">Videos Created</p>
+          <p className="text-gray-400 text-sm">Videos Created {stats.videosToday > 0 && `(${stats.videosToday} today)`}</p>
         </div>
 
         {/* Active Users */}
@@ -250,16 +314,16 @@ export default function AdminDashboard() {
               stats.recentActivity.slice(0, 10).map((activity, idx) => {
                 const Icon = actionIcons[activity.action] || Activity
                 const colorClass = actionColors[activity.action] || 'text-gray-400'
-                
+                const profile = activity.profiles ?? (activity as any).profile
                 return (
-                  <div key={idx} className="flex items-start gap-3">
+                  <div key={activity.id ?? idx} className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg bg-gray-800 ${colorClass}`}>
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white truncate">
                         <span className="font-medium">
-                          {activity.profiles?.full_name || 'User'}
+                          {profile?.full_name || 'User'}
                         </span>{' '}
                         <span className="text-gray-400">
                           {getActionLabel(activity.action)}
@@ -273,27 +337,11 @@ export default function AdminDashboard() {
                 )
               })
             ) : (
-              // Demo data
-              [
-                { name: 'Sarah Chen', action: 'generated a script', time: '2m ago' },
-                { name: 'Mike Rodriguez', action: 'signed up', time: '5m ago' },
-                { name: 'Lisa Park', action: 'created a video', time: '8m ago' },
-                { name: 'James Wilson', action: 'logged in', time: '12m ago' },
-                { name: 'Emma Stone', action: 'downloaded video', time: '15m ago' },
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-gray-800 text-purple-400">
-                    <Activity className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate">
-                      <span className="font-medium">{item.name}</span>{' '}
-                      <span className="text-gray-400">{item.action}</span>
-                    </p>
-                    <p className="text-xs text-gray-500">{item.time}</p>
-                  </div>
-                </div>
-              ))
+              <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                <Activity className="h-10 w-10 mb-2 opacity-50" />
+                <p className="font-medium">No activity yet</p>
+                <p className="text-sm mt-1">Waiting for first user...</p>
+              </div>
             )}
           </div>
           <a 
@@ -313,18 +361,14 @@ export default function AdminDashboard() {
             <thead>
               <tr className="text-left text-gray-400 text-sm border-b border-gray-800">
                 <th className="pb-3 font-medium">User</th>
-                <th className="pb-3 font-medium">Joined</th>
+                <th className="pb-3 font-medium">Scripts</th>
+                <th className="pb-3 font-medium">Videos</th>
                 <th className="pb-3 font-medium">Last Active</th>
-                <th className="pb-3 font-medium">Credits</th>
                 <th className="pb-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {(stats.topUsers.length > 0 ? stats.topUsers : [
-                { id: '1', full_name: 'Sarah Chen', email: 'sarah@example.com', created_at: '2024-01-15', last_active_at: new Date().toISOString(), credits: 45 },
-                { id: '2', full_name: 'Mike Rodriguez', email: 'mike@example.com', created_at: '2024-01-10', last_active_at: new Date(Date.now() - 3600000).toISOString(), credits: 32 },
-                { id: '3', full_name: 'Lisa Park', email: 'lisa@example.com', created_at: '2024-01-05', last_active_at: new Date(Date.now() - 7200000).toISOString(), credits: 78 },
-              ]).map((user: any) => (
+              {stats.topUsers.length > 0 ? stats.topUsers.map((user: any) => (
                 <tr key={user.id} className="text-sm hover:bg-gray-800/50 transition-colors">
                   <td className="py-4">
                     <div className="flex items-center gap-3">
@@ -339,14 +383,10 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   </td>
-                  <td className="py-4 text-gray-400">
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </td>
+                  <td className="py-4 text-white">{user.scriptCount ?? 0}</td>
+                  <td className="py-4 text-white">{user.videoCount ?? 0}</td>
                   <td className="py-4 text-gray-400">
                     {user.last_active_at ? formatRelativeTime(user.last_active_at) : 'Never'}
-                  </td>
-                  <td className="py-4">
-                    <span className="text-white">{user.credits || 0}</span>
                   </td>
                   <td className="py-4">
                     <a 
@@ -357,7 +397,17 @@ export default function AdminDashboard() {
                     </a>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <Users className="h-10 w-10 mb-2 opacity-50" />
+                      <p className="font-medium">No users yet</p>
+                      <p className="text-sm">Waiting for first signup...</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

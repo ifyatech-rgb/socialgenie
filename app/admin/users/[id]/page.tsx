@@ -52,11 +52,13 @@ const actionIcons: Record<string, any> = {
 export default function UserDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const userId = params.id as string
+  const userId = (params?.id as string) ?? ''
 
   const [user, setUser] = useState<UserDetail | null>(null)
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [scripts, setScripts] = useState<any[]>([])
+  const [videos, setVideos] = useState<any[]>([])
+  const [trainingVideos, setTrainingVideos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   const [editing, setEditing] = useState(false)
@@ -69,43 +71,25 @@ export default function UserDetailPage() {
   async function fetchUserData() {
     setLoading(true)
     try {
-      // Fetch user details
-      const userRes = await fetch(`/api/admin/users/${userId}`)
-      if (userRes.ok) {
-        const userData = await userRes.json()
-        setUser(userData.user)
-        setEditForm({
-          full_name: userData.user?.full_name || '',
-          email: userData.user?.email || '',
-          credits: userData.user?.credits || 0
-        })
+      const res = await fetch(`/api/admin/users/${userId}`)
+      const data = await res.json()
+      if (!res.ok) {
+        setUser(null)
+        return
       }
-
-      // Fetch user activity
-      const activityRes = await fetch(`/api/admin/activity?userId=${userId}&limit=50`)
-      if (activityRes.ok) {
-        const activityData = await activityRes.json()
-        setActivities(activityData.activities || [])
-      }
+      setUser(data.user)
+      setEditForm({
+        full_name: data.user?.full_name || '',
+        email: data.user?.email || '',
+        credits: data.user?.credits ?? 0,
+      })
+      setActivities(data.activities || [])
+      setScripts(data.scripts || [])
+      setVideos(data.videos || [])
+      setTrainingVideos(data.trainingVideos || [])
     } catch (error) {
       console.error('Failed to fetch user data:', error)
-      // Set demo data
-      setUser({
-        id: userId,
-        full_name: 'Sarah Chen',
-        email: 'sarah@example.com',
-        created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        last_active_at: new Date().toISOString(),
-        credits: 45,
-        plan: 'creator',
-        role: 'user',
-        avatar_url: null
-      })
-      setActivities([
-        { id: '1', action: 'script.generated', details: { topic: 'How to lose weight' }, created_at: new Date().toISOString(), ip_address: '192.168.1.1', user_agent: 'Chrome/Mac' },
-        { id: '2', action: 'user.login', details: {}, created_at: new Date(Date.now() - 3600000).toISOString(), ip_address: '192.168.1.1', user_agent: 'Chrome/Mac' },
-        { id: '3', action: 'video.completed', details: { topic: 'Fitness tips' }, created_at: new Date(Date.now() - 7200000).toISOString(), ip_address: '192.168.1.1', user_agent: 'Chrome/Mac' },
-      ])
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -149,7 +133,12 @@ export default function UserDetailPage() {
 
   async function handleSave() {
     try {
-      // API call to update user
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      })
+      if (!res.ok) throw new Error('Update failed')
       toast.success('User updated successfully')
       setEditing(false)
       setUser(prev => prev ? { ...prev, ...editForm } : null)
@@ -165,8 +154,14 @@ export default function UserDetailPage() {
 
   async function handleDelete() {
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return
-    toast.success('User deleted successfully')
-    router.push('/admin/users')
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+      toast.success('User deleted successfully')
+      router.push('/admin/users')
+    } catch (error) {
+      toast.error('Failed to delete user')
+    }
   }
 
   if (loading) {
@@ -284,7 +279,7 @@ export default function UserDetailPage() {
                   </div>
                   <div>
                     <span className="text-gray-500">Credits:</span>
-                    <span className="text-white ml-2">{user.credits}</span>
+                    <span className="text-white ml-2">{user.credits ?? 0}</span>
                   </div>
                 </div>
               </>
@@ -339,6 +334,7 @@ export default function UserDetailPage() {
             <div className="space-y-4">
               {activities.length > 0 ? activities.map((activity) => {
                 const Icon = actionIcons[activity.action] || Activity
+                const details = typeof activity.details === 'string' ? (() => { try { return JSON.parse(activity.details) } catch { return {} } })() : (activity.details || {})
                 return (
                   <div key={activity.id} className="flex items-start gap-4">
                     <div className="p-2 bg-gray-800 rounded-lg text-primary">
@@ -347,8 +343,8 @@ export default function UserDetailPage() {
                     <div className="flex-1">
                       <p className="text-white">
                         {getActionLabel(activity.action)}
-                        {activity.details?.topic && (
-                          <span className="text-gray-400">: {activity.details.topic}</span>
+                        {details?.topic && (
+                          <span className="text-gray-400">: {details.topic}</span>
                         )}
                       </p>
                       <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
@@ -362,7 +358,10 @@ export default function UserDetailPage() {
                   </div>
                 )
               }) : (
-                <p className="text-gray-500 text-center py-8">No activity yet</p>
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                  <Activity className="h-10 w-10 mb-2 opacity-50" />
+                  <p className="font-medium">No activity yet</p>
+                </div>
               )}
             </div>
           </div>
@@ -371,44 +370,55 @@ export default function UserDetailPage() {
         {activeTab === 'scripts' && (
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Generated Scripts</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[
-                { id: '1', topic: 'How to lose weight fast', platform: 'TikTok', created_at: new Date().toISOString() },
-                { id: '2', topic: 'Morning routine for success', platform: 'Instagram', created_at: new Date(Date.now() - 86400000).toISOString() },
-                { id: '3', topic: 'Investment tips for beginners', platform: 'YouTube', created_at: new Date(Date.now() - 172800000).toISOString() },
-              ].map((script) => (
-                <div key={script.id} className="bg-gray-800 rounded-xl p-4 hover:bg-gray-750 transition-colors">
-                  <h4 className="text-white font-medium mb-2 truncate">{script.topic}</h4>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-primary">{script.platform}</span>
-                    <span className="text-gray-500">{formatRelativeTime(script.created_at)}</span>
+            {scripts.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {scripts.map((script) => (
+                  <div key={script.id} className="bg-gray-800 rounded-xl p-4 hover:bg-gray-750 transition-colors">
+                    <h4 className="text-white font-medium mb-2 truncate">{script.topic}</h4>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-primary">{script.platform}</span>
+                      <span className="text-gray-500">{formatRelativeTime(script.createdAt)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <FileText className="h-10 w-10 mb-2 opacity-50" />
+                <p className="font-medium">No scripts generated yet</p>
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === 'videos' && (
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Generated Videos</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[
-                { id: '1', topic: 'Fitness motivation', platform: 'TikTok', duration: '30s', created_at: new Date().toISOString() },
-                { id: '2', topic: 'Business tips', platform: 'Instagram', duration: '60s', created_at: new Date(Date.now() - 86400000).toISOString() },
-              ].map((video) => (
-                <div key={video.id} className="bg-gray-800 rounded-xl p-4 hover:bg-gray-750 transition-colors">
-                  <div className="aspect-video bg-gray-700 rounded-lg mb-3 flex items-center justify-center">
-                    <Video className="h-8 w-8 text-gray-500" />
+            {videos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {videos.map((v) => (
+                  <div key={v.id} className="bg-gray-800 rounded-xl p-4 hover:bg-gray-750 transition-colors">
+                    <div className="aspect-video bg-gray-700 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                      {v.generatedVideoUrl ? (
+                        <video src={v.generatedVideoUrl} className="w-full h-full object-cover" controls />
+                      ) : (
+                        <Video className="h-8 w-8 text-gray-500" />
+                      )}
+                    </div>
+                    <h4 className="text-white font-medium mb-2 truncate">{v.topic}</h4>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-primary">{v.platform}</span>
+                      <span className="text-gray-500">{formatRelativeTime(v.createdAt)}</span>
+                    </div>
                   </div>
-                  <h4 className="text-white font-medium mb-2 truncate">{video.topic}</h4>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-primary">{video.platform} • {video.duration}</span>
-                    <span className="text-gray-500">{formatRelativeTime(video.created_at)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Video className="h-10 w-10 mb-2 opacity-50" />
+                <p className="font-medium">No videos created yet</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -430,7 +440,7 @@ export default function UserDetailPage() {
                   <label className="block text-sm text-gray-400 mb-2">Credits</label>
                   <input
                     type="number"
-                    defaultValue={user.credits}
+                    defaultValue={user.credits ?? 0}
                     className="w-full h-11 px-4 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-primary"
                   />
                   <p className="text-xs text-gray-500 mt-1">Manually adjust user credits</p>

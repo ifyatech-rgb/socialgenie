@@ -69,7 +69,7 @@ export function Footer() {
               <Logo size={40} showText={true} href="/" />
             </div>
             <p className="text-gray-400 text-sm mb-6 max-w-xs">
-              Your Partner to Go Viral. We analyze competitors, clone your voice and face, then create viral content that dominates your niche.
+              Your Partner to Go Viral - Complete AI Video Platform. Scripts, avatars, voices, and video generation in one place.
             </p>
             
             {/* Social Links */}
@@ -170,7 +170,7 @@ export function Footer() {
         {/* Copyright */}
         <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-gray-500 text-sm">
-            © {new Date().getFullYear()} Voxara. All rights reserved.
+            © {new Date().getFullYear()} SocialGenie. All rights reserved.
           </p>
           <p className="text-gray-500 text-sm">
             Made with ❤️ for creators worldwide

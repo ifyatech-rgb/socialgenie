@@ -13,7 +13,7 @@ export default function AdminSettingsPage() {
   
   const [settings, setSettings] = useState({
     // General
-    siteName: 'Voxara',
+    siteName: 'SocialGenie',
     siteUrl: 'https://viralclone.com',
     supportEmail: 'support@viralclone.com',
     
@@ -27,8 +27,7 @@ export default function AdminSettingsPage() {
     // API Keys
     openaiKey: 'sk-...hidden',
     anthropicKey: 'sk-ant-...hidden',
-    didApiKey: '...hidden',
-    heygenApiKey: '',
+    heygenApiKey: '...hidden',
     
     // Limits
     freeCredits: 10,
@@ -188,22 +187,13 @@ export default function AdminSettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">D-ID API Key</label>
-            <input
-              type="password"
-              value={settings.didApiKey}
-              onChange={(e) => setSettings(s => ({ ...s, didApiKey: e.target.value }))}
-              className="w-full h-11 px-4 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-primary font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">HeyGen API Key</label>
+            <label className="block text-sm text-gray-400 mb-2">HeyGen API Key (video generation)</label>
             <input
               type="password"
               value={settings.heygenApiKey}
               onChange={(e) => setSettings(s => ({ ...s, heygenApiKey: e.target.value }))}
               className="w-full h-11 px-4 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-primary font-mono"
-              placeholder="Not configured"
+              placeholder="sk_V2_..."
             />
           </div>
         </div>
