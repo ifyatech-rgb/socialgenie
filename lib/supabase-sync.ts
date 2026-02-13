@@ -40,7 +40,7 @@ export async function syncUserToSupabase(payload: SyncUserPayload): Promise<void
         .from("users")
         .update({
           name: name ?? null,
-          image: avatar_url ?? null,
+          avatar_url: avatar_url ?? null,
           updated_at: now,
         })
         .eq("email", email.trim().toLowerCase());
@@ -55,7 +55,7 @@ export async function syncUserToSupabase(payload: SyncUserPayload): Promise<void
         id,
         email: email.trim().toLowerCase(),
         name: name ?? null,
-        image: avatar_url ?? null,
+        avatar_url: avatar_url ?? null,
         created_at: now,
         updated_at: now,
       });
