@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
     const stack = error instanceof Error ? error.stack : undefined;
     console.error('[VideoGen] Error:', message, stack ?? '');
     const userEmail = await getAuthUserEmail(request).catch(() => null);
-    const user = userEmail ? await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true } }).catch(() => null);
+    const user = userEmail ? await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true } }).catch(() => null) : null;
     trackError({
       user_id: user?.id ?? null,
       endpoint: '/api/videos/generate',
