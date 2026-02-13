@@ -148,7 +148,24 @@ const authOptions: NextAuthOptions = {
                 stripe_subscription_id: null,
                 subscription_status: null,
               },
-              select: { id: true, email: true, name: true, image: true },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                image: true,
+                password: true,
+                emailVerified: true,
+                niche: true,
+                platforms: true,
+                credits: true,
+                plan: true,
+                payment_status: true,
+                stripe_customer_id: true,
+                stripe_subscription_id: true,
+                subscription_status: true,
+                createdAt: true,
+                updatedAt: true,
+              },
             });
             console.log("Google user created in Prisma:", prismaUser.id);
           } else {
