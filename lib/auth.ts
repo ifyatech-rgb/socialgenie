@@ -42,9 +42,17 @@ const authOptions: NextAuthOptions = {
                 data: {
                   email,
                   name: userName,
+                  image: null,
                   emailVerified: null,
                   password: hashedPassword,
+                  niche: null,
+                  platforms: null,
+                  credits: 10,
+                  plan: 'free',
                   payment_status: "pending",
+                  stripe_customer_id: null,
+                  stripe_subscription_id: null,
+                  subscription_status: null,
                 },
                 select: { id: true, email: true, name: true, password: true },
               });
