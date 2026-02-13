@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserEmail } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateVideo, checkVideoStatus } from '@/lib/video-generation';
+import { trackVideoGeneration, trackCreditsUsage, trackError } from '@/lib/tracking';
+import { syncVideoToSupabase } from '@/lib/supabase-sync';
+import { canAccessApp } from '@/lib/payment';
 
 // Cost per video generation (in credits)
 const VIDEO_GENERATION_COST = 5;
@@ -35,12 +38,13 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
-    // Get user with credits and avatar (HeyGen avatar_id + voice from DB or use default)
+    // Get user with credits, payment status, and avatar
     const user = await prisma.user.findUnique({
       where: { email: userEmail },
       select: {
         id: true,
         credits: true,
+        payment_status: true,
         avatarId: true,
         avatarStatus: true,
         avatarVoiceId: true,
@@ -50,6 +54,13 @@ export async function POST(request: NextRequest) {
     if (!user) {
       console.log('[VideoGen] User not found for email');
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (!canAccessApp(user.payment_status)) {
+      return NextResponse.json(
+        { error: 'Complete your payment to use this feature.', code: 'payment_required' },
+        { status: 403 }
+      );
     }
     console.log('[VideoGen] User id:', user.id, 'credits:', user.credits);
 
@@ -223,6 +234,24 @@ export async function POST(request: NextRequest) {
       },
     }).catch(err => console.error('Failed to log activity:', err));
 
+    // Supabase tracking (non-blocking)
+    trackVideoGeneration({
+      user_id: user.id,
+      script_id: script.id,
+      video_id: result.videoId,
+      provider: result.provider,
+      status: 'processing',
+      credits_used: VIDEO_GENERATION_COST,
+    });
+    trackCreditsUsage({
+      user_id: user.id,
+      amount: -VIDEO_GENERATION_COST,
+      reason: 'video_generation',
+      reference_type: 'script',
+      reference_id: script.id,
+      balance_after: updatedUser.credits,
+    });
+
     console.log(`[VideoGen] Video generation started: ${result.videoId}`);
 
     return NextResponse.json({
@@ -240,6 +269,16 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Internal server error';
     const stack = error instanceof Error ? error.stack : undefined;
     console.error('[VideoGen] Error:', message, stack ?? '');
+    const userEmail = await getAuthUserEmail(request).catch(() => null);
+    const user = userEmail ? await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true } }).catch(() => null);
+    trackError({
+      user_id: user?.id ?? null,
+      endpoint: '/api/videos/generate',
+      error_message: message,
+      error_stack: stack ?? undefined,
+      status_code: 500,
+      metadata: { code: 'server_error' },
+    });
     return NextResponse.json(
       { error: message, code: 'server_error' },
       { status: 500 }
@@ -348,6 +387,14 @@ export async function GET(request: NextRequest) {
           status: 'video_ready',
         },
       });
+
+      syncVideoToSupabase({
+        id: script.generatedVideoId!,
+        user_id: user.id,
+        script_id: scriptId,
+        url: statusResult.resultUrl,
+        status: 'uploaded',
+      }).catch(() => {});
 
       // Log activity (non-blocking)
       prisma.activity.create({

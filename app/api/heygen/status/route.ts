@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUserEmail } from "@/lib/auth";
 import { getHeyGenClient } from "@/lib/heygenClient";
 import { prisma } from "@/lib/prisma";
+import { syncVideoToSupabase } from "@/lib/supabase-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,15 @@ export async function GET(request: NextRequest) {
             duration: status.duration ?? undefined,
           },
         });
+        syncVideoToSupabase({
+          id: videoId,
+          user_id: generatedVideo.userId,
+          script_id: generatedVideo.scriptId,
+          url: status.video_url,
+          thumbnail_url: status.thumbnail_url ?? undefined,
+          duration: status.duration ?? undefined,
+          status: "uploaded",
+        }).catch(() => {});
       } else if (isFailed && status.error) {
         await prisma.generatedVideo.update({
           where: { id: generatedVideo.id },
@@ -68,6 +78,15 @@ export async function GET(request: NextRequest) {
               duration: status.duration ?? undefined,
             },
           });
+          syncVideoToSupabase({
+            id: videoId,
+            user_id: script.userId,
+            script_id: script.id,
+            url: status.video_url,
+            thumbnail_url: status.thumbnail_url ?? undefined,
+            duration: status.duration ?? undefined,
+            status: "uploaded",
+          }).catch(() => {});
         } else if (isFailed && status.error) {
             await prisma.script.update({
               where: { id: script.id },

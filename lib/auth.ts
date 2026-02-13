@@ -1,105 +1,15 @@
 import { NextAuthOptions } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
-import { createServerClient } from '@supabase/ssr';
 import { hash, compare } from "bcryptjs";
-
-// Helper function to sync user to Supabase
-async function syncUserToSupabase(email: string, name: string) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.log("Supabase not configured, skipping sync");
-      return;
-    }
-
-    const supabase = createServerClient(supabaseUrl, supabaseServiceKey, {
-      cookies: {
-        get() { return undefined },
-        set() {},
-        remove() {},
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
-    // Check if profile exists
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .single();
-
-    if (!existingProfile) {
-      // Create new profile
-      const { error } = await supabase
-        .from('profiles')
-        .insert({
-          email: email,
-          full_name: name,
-          role: 'user',
-          plan: 'free',
-          credits: 10,
-          status: 'active',
-          last_active_at: new Date().toISOString(),
-        });
-
-      if (error) {
-        console.error("Error creating Supabase profile:", error);
-      } else {
-        console.log("✅ User synced to Supabase:", email);
-        
-        // Log signup activity
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('email', email)
-          .single();
-          
-        if (profile) {
-          await supabase
-            .from('activity_logs')
-            .insert({
-              user_id: profile.id,
-              action: 'user.signup',
-              details: { email, name },
-            });
-        }
-      }
-    } else {
-      // Update last active
-      await supabase
-        .from('profiles')
-        .update({ last_active_at: new Date().toISOString() })
-        .eq('email', email);
-        
-      // Log login activity
-      await supabase
-        .from('activity_logs')
-        .insert({
-          user_id: existingProfile.id,
-          action: 'user.login',
-          details: { email },
-        });
-    }
-  } catch (error) {
-    console.error("Supabase sync error:", error);
-    // Don't throw - allow auth to continue even if Supabase sync fails
-  }
-}
+import { trackUserActivity } from "@/lib/tracking";
+import { syncUserToSupabase } from "@/lib/supabase-sync";
 
 const authOptions: NextAuthOptions = {
-  // Note: PrismaAdapter is only used for OAuth providers
-  // Credentials provider doesn't use the adapter
   providers: [
-    // Credentials provider (email/password) - works without external setup
+    // Credentials provider (email/password)
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -123,7 +33,6 @@ const authOptions: NextAuthOptions = {
           });
 
           if (isSignUp) {
-            // Sign-up: do not create if email already exists
             if (user) {
               throw new Error("This email is already registered. Please sign in instead.");
             }
@@ -135,23 +44,25 @@ const authOptions: NextAuthOptions = {
                   name: userName,
                   emailVerified: null,
                   password: hashedPassword,
+                  payment_status: "pending",
                 },
                 select: { id: true, email: true, name: true, password: true },
               });
               console.log("User created successfully:", user.id);
-              await syncUserToSupabase(credentials.email, userName);
-            } catch (createError: any) {
-              const code = createError?.code;
+              await syncUserToSupabase({ id: user.id, email: user.email, name: user.name ?? undefined, avatar_url: null });
+              trackUserActivity(user.id, "signup").catch(() => {});
+            } catch (createError: unknown) {
+              const err = createError as { code?: string; message?: string };
+              const code = err?.code;
               if (code === "P2002") {
                 throw new Error("This email is already registered. Please sign in instead.");
               }
               if (code === "P1001" || code === "P1002" || code === "P1017") {
                 throw new Error("Database connection failed. Please try again later.");
               }
-              throw new Error(createError?.message || "Failed to create account. Please try again.");
+              throw new Error(err?.message || "Failed to create account. Please try again.");
             }
           } else {
-            // Sign-in: user must exist, then verify password
             if (!user) {
               throw new Error("No account found. Please sign up first.");
             }
@@ -161,22 +72,23 @@ const authOptions: NextAuthOptions = {
                 throw new Error("Incorrect password. Please try again.");
               }
             }
-            // Legacy users without stored password: accept any password
-            await syncUserToSupabase(credentials.email, user.name || userName);
+            await syncUserToSupabase({ id: user.id, email: user.email, name: user.name ?? undefined, avatar_url: null });
+            trackUserActivity(user.id, "login").catch(() => {});
           }
 
           return {
             id: user!.id,
             email: user!.email,
             name: user!.name,
+            image: null,
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Auth error:", error);
-          throw new Error(error?.message || "Authentication failed. Please check your database connection.");
+          const message = error instanceof Error ? error.message : "Authentication failed. Please try again.";
+          throw new Error(message);
         }
       },
     }),
-    // Google OAuth (optional - only works if credentials are set)
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? [
           GoogleProvider({
@@ -185,7 +97,6 @@ const authOptions: NextAuthOptions = {
           }),
         ]
       : []),
-    // Email provider (optional - only works if SMTP is configured)
     ...(process.env.EMAIL_SERVER_HOST
       ? [
           EmailProvider({
@@ -206,25 +117,81 @@ const authOptions: NextAuthOptions = {
     signIn: "/auth/signin",
   },
   callbacks: {
+    async signIn({ user, account }) {
+      // Sync Google OAuth users to Prisma + Supabase
+      if (account?.provider === "google" && user?.email) {
+        try {
+          const email = user.email.trim().toLowerCase();
+          let prismaUser = await prisma.user.findUnique({ where: { email } });
+          if (!prismaUser) {
+            prismaUser = await prisma.user.create({
+              data: {
+                email,
+                name: user.name ?? email.split("@")[0],
+                image: user.image ?? null,
+                emailVerified: new Date(),
+                payment_status: "pending",
+              },
+              select: { id: true, email: true, name: true, image: true },
+            });
+            console.log("Google user created in Prisma:", prismaUser.id);
+          } else {
+            await prisma.user.update({
+              where: { id: prismaUser.id },
+              data: { name: user.name ?? prismaUser.name, image: user.image ?? prismaUser.image },
+            });
+          }
+          await syncUserToSupabase({
+            id: prismaUser.id,
+            email: prismaUser.email,
+            name: prismaUser.name ?? undefined,
+            avatar_url: user.image ?? prismaUser.image ?? undefined,
+          });
+          trackUserActivity(prismaUser.id, "login").catch(() => {});
+        } catch (err) {
+          console.error("Google sign-in sync error:", err);
+          // Don't break login - allow auth to continue
+        }
+      }
+      return true;
+    },
     async redirect({ url, baseUrl }) {
-      // After sign in, send users to dashboard unless they came from a specific URL
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       if (new URL(url).origin === baseUrl) return url;
       return `${baseUrl}/dashboard`;
     },
     async session({ session, user, token }) {
       if (session.user) {
-        // For credentials provider (JWT), user is only set at sign-in; use token for ongoing requests
         session.user.id = (user?.id || token?.sub) as string;
         if (token?.email) session.user.email = token.email as string;
         if (token?.name !== undefined) session.user.name = token.name as string | null;
       }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
-        token.id = user.id;
-        token.sub = user.id; // Required so session.user.id is set for credentials provider
+        // For Google OAuth, use our Prisma user id (look up by email)
+        if (account?.provider === "google" && user.email) {
+          try {
+            const prismaUser = await prisma.user.findUnique({
+              where: { email: user.email.trim().toLowerCase() },
+              select: { id: true },
+            });
+            if (prismaUser) {
+              token.sub = prismaUser.id;
+              token.id = prismaUser.id;
+            } else {
+              token.sub = user.id;
+              token.id = user.id;
+            }
+          } catch {
+            token.sub = user.id;
+            token.id = user.id;
+          }
+        } else {
+          token.sub = user.id;
+          token.id = user.id;
+        }
         token.email = user.email;
         token.name = user.name;
       }
@@ -232,7 +199,12 @@ const authOptions: NextAuthOptions = {
     },
   },
   session: {
-    strategy: "jwt", // Changed to JWT for credentials provider compatibility
+    strategy: "jwt",
+  },
+  events: {
+    async signIn() {
+      // Backup: ensure we don't miss any sync
+    },
   },
 };
 
@@ -240,7 +212,6 @@ export { authOptions };
 
 /**
  * Get session from the request's cookies by decoding the NextAuth JWT directly.
- * Uses same cookie parsing as NextAuth. Does not call getServerSession.
  */
 export async function getSessionFromRequestCookies(request: Request): Promise<{ user: { id: string; email: string | null; name: string | null } } | null> {
   const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
@@ -284,8 +255,7 @@ export async function getSessionFromRequestCookies(request: Request): Promise<{ 
 }
 
 /**
- * Get session from next/headers cookies() and decode JWT. Use as fallback in Route Handlers
- * when getServerSession and getSessionFromRequestCookies both fail.
+ * Get session from next/headers cookies() and decode JWT.
  */
 export async function getSessionFromNextHeadersCookies(): Promise<{ user: { id: string; email: string | null; name: string | null } } | null> {
   const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
@@ -315,8 +285,7 @@ export async function getSessionFromNextHeadersCookies(): Promise<{ user: { id: 
 export type SessionLike = { user: { id: string; email: string | null; name: string | null } };
 
 /**
- * Resolve session in Route Handlers (same order as videos/generate): request cookies → next/headers → getServerSession.
- * Use in any API route that needs the current user so page-load 401s are fixed.
+ * Resolve session in Route Handlers.
  */
 export async function getSessionForRequest(request: Request): Promise<SessionLike | null> {
   try {
@@ -350,8 +319,7 @@ export async function getSessionForRequest(request: Request): Promise<SessionLik
 }
 
 /**
- * Get current user email for API routes. Tries session then dev X-Dev-Email header.
- * Returns null if not authenticated. Use in GET /api/scripts, GET /api/avatar to fix page-load 401.
+ * Get current user email for API routes.
  */
 export async function getAuthUserEmail(request: Request): Promise<string | null> {
   const session = await getSessionForRequest(request);

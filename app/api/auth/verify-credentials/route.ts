@@ -45,8 +45,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, email: user.email })
   } catch (e) {
     console.error("[verify-credentials]", e)
+    const msg =
+      e instanceof Error
+        ? e.message
+        : "Something went wrong. Please try again."
+    const isDbError =
+      msg.includes("connection") ||
+      msg.includes("timeout") ||
+      msg.includes("ECONNREFUSED") ||
+      (e as { code?: string })?.code?.startsWith?.("P")
     return NextResponse.json(
-      { ok: false, error: "Something went wrong. Please try again." },
+      {
+        ok: false,
+        error: isDbError ? "Database connection failed. Please try again later." : "Something went wrong. Please try again.",
+      },
       { status: 500 }
     )
   }

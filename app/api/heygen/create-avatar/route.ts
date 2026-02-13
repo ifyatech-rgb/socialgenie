@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUserEmail } from "@/lib/auth";
 import { getHeyGenClient } from "@/lib/heygenClient";
+import { prisma } from "@/lib/prisma";
+import { trackAvatarEvent } from "@/lib/tracking";
+import { canAccessApp } from "@/lib/payment";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +14,18 @@ export async function POST(request: NextRequest) {
   try {
     const email = await getAuthUserEmail(request);
     if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, payment_status: true },
+    });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!canAccessApp(user.payment_status)) {
+      return NextResponse.json(
+        { error: "Complete your payment to use this feature.", code: "payment_required" },
+        { status: 403 }
+      );
+    }
 
     const formData = await request.formData();
     const avatarName = formData.get("avatarName")?.toString()?.trim();
@@ -97,6 +112,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    trackAvatarEvent({
+      user_id: user.id,
+      event_type: "avatar_created",
+      avatar_id: result.avatarId ?? undefined,
+      provider: "heygen",
+      status: result.status,
+    });
+
     return NextResponse.json({
       success: true,
       avatarId: result.avatarId,
@@ -106,6 +129,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[HeyGen create-avatar]", error);
+    const email = await getAuthUserEmail(request).catch(() => null);
+    const user = email ? await prisma.user.findUnique({ where: { email }, select: { id: true } }).catch(() => null) : null;
+    trackError({
+      user_id: user?.id ?? null,
+      endpoint: "/api/heygen/create-avatar",
+      error_message: error instanceof Error ? error.message : "Failed to create avatar",
+      status_code: 500,
+    });
     return NextResponse.json(
       { error: "server_error", message: error instanceof Error ? error.message : "Failed to create avatar" },
       { status: 500 }

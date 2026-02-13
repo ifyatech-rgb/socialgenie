@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { syncVideoToSupabase } from "@/lib/supabase-sync";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
@@ -80,6 +81,14 @@ export async function POST(request: NextRequest) {
           status: "uploaded",
         },
       });
+
+      syncVideoToSupabase({
+        id: video.id,
+        user_id: video.userId,
+        url: video.url,
+        filename: video.filename,
+        status: video.status,
+      }).catch(() => {});
 
       return NextResponse.json({ 
         video, 

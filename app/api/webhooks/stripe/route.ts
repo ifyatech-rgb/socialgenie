@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
+import { trackCreditsUsage, trackSubscriptionEvent } from "@/lib/tracking"
 
 const stripeClient = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -136,24 +137,37 @@ export async function POST(request: NextRequest) {
               duplicatePaymentMethod,
             },
           }),
-          // Only add credits if this card is not already used by another account
-          ...(duplicatePaymentMethod
-            ? []
-            : [
-                prisma.user.update({
-                  where: { id: user.id },
-                  data: {
-                    credits: TRIAL_CREDITS,
-                    plan: "starter",
-                  },
-                }),
-              ]),
+          // Mark user as paid and store Stripe ids; add credits if card not duplicated
+          prisma.user.update({
+            where: { id: user.id },
+            data: {
+              payment_status: "paid",
+              stripe_customer_id: customerId,
+              stripe_subscription_id: subscriptionId,
+              subscription_status: "trialing",
+              ...(duplicatePaymentMethod ? {} : { credits: TRIAL_CREDITS, plan: "starter" }),
+            },
+          }),
         ])
 
         if (duplicatePaymentMethod) {
           console.log("[Stripe webhook] checkout.session.completed: duplicate payment method for", email)
         } else {
           console.log("[Stripe webhook] checkout.session.completed: subscription saved for", email)
+          trackCreditsUsage({
+            user_id: user.id,
+            amount: TRIAL_CREDITS,
+            reason: "trial_credits",
+            reference_type: "stripe_subscription",
+            reference_id: subscriptionId,
+          })
+          trackSubscriptionEvent({
+            user_id: user.id,
+            event_type: "checkout_completed",
+            plan: "starter",
+            stripe_event_id: event.id,
+            metadata: { trialEnd: trialEnd?.toISOString() },
+          })
         }
         break
       }
@@ -179,18 +193,24 @@ export async function POST(request: NextRequest) {
                 ? "past_due"
                 : existing.status
 
-        await prisma.subscription.update({
-          where: { id: existing.id },
-          data: {
-            status,
-            trialEndsAt: subscription.trial_end
-              ? new Date(subscription.trial_end * 1000)
-              : null,
-            currentPeriodStart: new Date(subscription.current_period_start * 1000),
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-            updatedAt: new Date(),
-          },
-        })
+        await prisma.$transaction([
+          prisma.subscription.update({
+            where: { id: existing.id },
+            data: {
+              status,
+              trialEndsAt: subscription.trial_end
+                ? new Date(subscription.trial_end * 1000)
+                : null,
+              currentPeriodStart: new Date(subscription.current_period_start * 1000),
+              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+              updatedAt: new Date(),
+            },
+          }),
+          prisma.user.update({
+            where: { id: existing.userId },
+            data: { subscription_status: status },
+          }),
+        ])
 
         console.log("[Stripe webhook] customer.subscription.updated:", subId)
         break
@@ -205,10 +225,16 @@ export async function POST(request: NextRequest) {
         })
 
         if (existing) {
-          await prisma.subscription.update({
-            where: { id: existing.id },
-            data: { status: "cancelled", updatedAt: new Date() },
-          })
+          await prisma.$transaction([
+            prisma.subscription.update({
+              where: { id: existing.id },
+              data: { status: "cancelled", updatedAt: new Date() },
+            }),
+            prisma.user.update({
+              where: { id: existing.userId },
+              data: { subscription_status: "cancelled" },
+            }),
+          ])
           console.log("[Stripe webhook] customer.subscription.deleted:", subId)
         }
         break
@@ -226,13 +252,30 @@ export async function POST(request: NextRequest) {
         })
 
         if (existing) {
-          await prisma.user.update({
+          const updated = await prisma.user.update({
             where: { id: existing.userId },
             data: {
               credits: { increment: MONTHLY_CREDITS },
+              payment_status: "paid",
+              subscription_status: "active",
             },
+            select: { credits: true },
           })
           console.log("[Stripe webhook] invoice.payment_succeeded: added credits for user", existing.userId)
+          trackCreditsUsage({
+            user_id: existing.userId,
+            amount: MONTHLY_CREDITS,
+            reason: "monthly_credits",
+            reference_type: "stripe_invoice",
+            reference_id: invoice.id,
+            balance_after: updated.credits,
+          })
+          trackSubscriptionEvent({
+            user_id: existing.userId,
+            event_type: "invoice_payment_succeeded",
+            plan: existing.user.plan ?? "starter",
+            stripe_event_id: event.id,
+          })
         }
         break
       }

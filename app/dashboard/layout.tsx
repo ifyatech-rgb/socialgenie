@@ -47,22 +47,26 @@ export default function DashboardLayout({
     }
   }, [status, router]);
 
-  // Fetch user credits
+  // Fetch user credits and payment status; redirect unpaid users to checkout
   useEffect(() => {
-    const fetchCredits = async () => {
+    const fetchUser = async () => {
       if (status !== "authenticated") return;
       try {
         const res = await fetch("/api/user");
         if (res.ok) {
           const data = await res.json();
           setCredits(data.user?.credits ?? 0);
+          const paymentStatus = data.user?.payment_status;
+          if (paymentStatus === "pending") {
+            router.replace("/checkout-required");
+          }
         }
       } catch (error) {
-        console.error("Failed to fetch credits:", error);
+        console.error("Failed to fetch user:", error);
       }
     };
-    fetchCredits();
-  }, [status, pathname]);
+    fetchUser();
+  }, [status, pathname, router]);
 
   // Close sidebar on route change
   useEffect(() => {

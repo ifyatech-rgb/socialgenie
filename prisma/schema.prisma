@@ -41,16 +41,22 @@ model User {
   niche         String?   // User's content niche
   platforms     String?   // Comma-separated platforms
   onboardingCompleted Boolean @default(false)
-  
+
+  // Payment gating: pending until Stripe checkout completes
+  payment_status       String    @default("pending") // 'pending' | 'paid' | 'trial'
+  stripe_customer_id  String?
+  stripe_subscription_id String?
+  subscription_status String?   // active, trialing, cancelled, etc.
+
   // Custom Avatar (D-ID) - cloned from video
   avatarId      String?   // D-ID agent/presenter ID (from video clone)
   avatarUrl     String?   // Avatar thumbnail or source video URL
   avatarStatus  String?   // pending, processing, ready, failed
   avatarVoiceId String?   // Not used - D-ID clones voice from video
-  
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  
+
   accounts         Account[]
   sessions         Session[]
   videos           Video[]

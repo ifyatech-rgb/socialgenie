@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
         image: true,
         credits: true,
         plan: true,
+        payment_status: true,
         niche: true,
         platforms: true,
         onboardingCompleted: true,

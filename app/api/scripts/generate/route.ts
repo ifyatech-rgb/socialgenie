@@ -7,6 +7,8 @@ import { researchNiche, formatResearchForPrompt, CompetitorResearch } from '@/li
 import { getViralScriptSystemPrompt } from '@/lib/viral-script-prompt'
 import { cleanScript } from '@/lib/scriptCleaner'
 import { formatScript, validateScriptStructure } from '@/lib/scriptFormatter'
+import { canAccessApp } from '@/lib/payment'
+import { trackCreditsUsage, trackFeatureUsage } from '@/lib/tracking'
 
 // Types
 interface GenerateScriptRequest {
@@ -157,7 +159,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user from database with credits
+    // Get user from database with credits and payment status
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       select: {
@@ -165,6 +167,7 @@ export async function POST(request: NextRequest) {
         email: true,
         name: true,
         credits: true,
+        payment_status: true,
       },
     })
 
@@ -172,6 +175,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
+      )
+    }
+
+    if (!canAccessApp(user.payment_status)) {
+      return NextResponse.json(
+        { error: 'Complete your payment to use this feature.', code: 'payment_required' },
+        { status: 403 }
       )
     }
 
@@ -523,6 +533,20 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
           }),
         },
     }).catch(err => console.error('Failed to log activity:', err))
+
+    trackCreditsUsage({
+      user_id: user.id,
+      amount: -creditsToDeduct,
+      reason: researchUsed ? 'script_generation_with_research' : 'script_generation',
+      reference_type: 'script',
+      reference_id: script.id,
+      balance_after: updatedUser.credits,
+    })
+    trackFeatureUsage({
+      user_id: user.id,
+      feature_name: 'script_generated',
+      metadata: { platform, tone, researchUsed },
+    })
 
     const actualWordCount = generatedScript.split(/\s+/).filter(Boolean).length
 

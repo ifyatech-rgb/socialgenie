@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         trial_period_days: TRIAL_DAYS,
       },
       success_url: `${origin}/dashboard?success=true`,
-      cancel_url: `${origin}/checkout?canceled=true`,
+      cancel_url: `${origin}/checkout-required`,
       metadata: {
         trial_days: String(TRIAL_DAYS),
         trial_videos: String(TRIAL_VIDEOS),

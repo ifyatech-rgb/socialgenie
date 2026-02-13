@@ -35,6 +35,25 @@ export default function SignInPage() {
     }
   }, [prefilledEmail])
 
+  // Show error when NextAuth redirects back (e.g. after form submit to callback failed)
+  useEffect(() => {
+    const err = searchParams?.get("error")?.trim()
+    if (err) {
+      if (err === "CredentialsSignin" || err === "OAuthAccountNotLinked") {
+        toast.error("Invalid credentials or session error. Please try again.")
+      } else if (err === "OAuthCallback" || err === "OAuthCreateAccount") {
+        toast.error("Sign-in failed. Please try again.")
+      } else {
+        toast.error("Something went wrong. Please try again.")
+      }
+      // Clear the error from URL without full reload
+      const url = new URL(window.location.href)
+      url.searchParams.delete("error")
+      url.searchParams.delete("error_description")
+      window.history.replaceState({}, "", url.toString())
+    }
+  }, [searchParams])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
     if (e.target.name === "email") setNoAccountFound(false)

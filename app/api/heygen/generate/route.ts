@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getHeyGenClient } from "@/lib/heygenClient";
 import { cleanScript } from "@/lib/scriptCleaner";
 import { stripSectionHeadersForTTS } from "@/lib/scriptFormatter";
+import { trackCreditsUsage, trackVideoGeneration } from "@/lib/tracking";
 
 const VIDEO_CREDITS = 5;
 export const dynamic = "force-dynamic";
@@ -64,9 +65,26 @@ export async function POST(request: NextRequest) {
       background: { type: "color", value: "#000000" },
     });
 
+    const newBalance = Math.max(0, (user.credits ?? 0) - VIDEO_CREDITS);
     await prisma.user.update({
       where: { id: user.id },
-      data: { credits: Math.max(0, (user.credits ?? 0) - VIDEO_CREDITS) },
+      data: { credits: newBalance },
+    });
+
+    trackCreditsUsage({
+      user_id: user.id,
+      amount: -VIDEO_CREDITS,
+      reason: "heygen_video_generation",
+      reference_type: "video",
+      reference_id: videoResult.videoId,
+      balance_after: newBalance,
+    });
+    trackVideoGeneration({
+      user_id: user.id,
+      video_id: videoResult.videoId,
+      provider: "heygen",
+      status: "processing",
+      credits_used: VIDEO_CREDITS,
     });
 
     let projectId: string | null = null;
@@ -128,7 +146,7 @@ export async function POST(request: NextRequest) {
       resolution: `${dimension.width}x${dimension.height}`,
       aspectRatio,
       creditsUsed: VIDEO_CREDITS,
-      remainingCredits: Math.max(0, (user.credits ?? 0) - VIDEO_CREDITS),
+      remainingCredits: newBalance,
     });
   } catch (error) {
     console.error("[HeyGen Generate] Failed:", error);

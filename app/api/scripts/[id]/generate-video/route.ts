@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateVideo } from "@/lib/video-generation";
+import { trackVideoGeneration, trackError } from "@/lib/tracking";
+import { canAccessApp } from "@/lib/payment";
 
 export async function POST(
   request: NextRequest,
@@ -17,11 +19,18 @@ export async function POST(
     const { id } = await context.params;
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { id: true, credits: true, avatarId: true, avatarStatus: true },
+      select: { id: true, credits: true, payment_status: true, avatarId: true, avatarStatus: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (!canAccessApp(user.payment_status)) {
+      return NextResponse.json(
+        { error: "Complete your payment to use this feature.", code: "payment_required" },
+        { status: 403 }
+      );
     }
 
     const script = await prisma.script.findFirst({
@@ -84,6 +93,14 @@ export async function POST(
         },
       });
 
+      trackVideoGeneration({
+        user_id: user.id,
+        script_id: script.id,
+        video_id: result.videoId,
+        provider: "heygen",
+        status: "processing",
+      });
+
       return NextResponse.json({
         success: true,
         message: "Video generation started. This may take 2–5 minutes.",
@@ -103,6 +120,16 @@ export async function POST(
   } catch (error: unknown) {
     console.error("Video generation error:", error);
     const message = error instanceof Error ? error.message : "Failed to generate video";
+    const session = await getServerSession(authOptions).catch(() => null);
+    const user = session?.user?.email
+      ? await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } }).catch(() => null)
+      : null;
+    trackError({
+      user_id: user?.id ?? null,
+      endpoint: "/api/scripts/[id]/generate-video",
+      error_message: message,
+      status_code: 500,
+    });
     if (message.includes("HeyGen API key")) {
       return NextResponse.json({ error: message }, { status: 401 });
     }
