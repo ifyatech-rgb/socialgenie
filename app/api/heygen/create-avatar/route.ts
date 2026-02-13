@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUserEmail } from "@/lib/auth";
 import { getHeyGenClient } from "@/lib/heygenClient";
 import { prisma } from "@/lib/prisma";
-import { trackAvatarEvent } from "@/lib/tracking";
+import { trackAvatarEvent, trackError } from "@/lib/tracking";
 import { canAccessApp } from "@/lib/payment";
 
 export const dynamic = "force-dynamic";
