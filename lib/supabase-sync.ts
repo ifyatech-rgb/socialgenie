@@ -42,7 +42,7 @@ export async function syncUserToSupabase(payload: SyncUserPayload): Promise<void
           name: name ?? null,
           avatar_url: avatar_url ?? null,
           updated_at: now,
-        })
+        } as any)
         .eq("email", email.trim().toLowerCase());
 
       if (error) {
@@ -58,7 +58,7 @@ export async function syncUserToSupabase(payload: SyncUserPayload): Promise<void
         avatar_url: avatar_url ?? null,
         created_at: now,
         updated_at: now,
-      });
+      } as any);
 
       if (error) {
         console.error("Supabase users INSERT error:", error);
