@@ -29,7 +29,6 @@ const authOptions: NextAuthOptions = {
         try {
           let user = await prisma.user.findUnique({
             where: { email },
-            select: { id: true, email: true, name: true, password: true },
           });
 
           if (isSignUp) {
@@ -54,7 +53,6 @@ const authOptions: NextAuthOptions = {
                   stripe_subscription_id: null,
                   subscription_status: null,
                 },
-                select: { id: true, email: true, name: true, password: true },
               });
               console.log("User created successfully:", user.id);
               await syncUserToSupabase({ id: user.id, email: user.email, name: user.name ?? undefined, avatar_url: null });
@@ -88,7 +86,7 @@ const authOptions: NextAuthOptions = {
             id: user!.id,
             email: user!.email,
             name: user!.name,
-            image: null,
+            image: user!.image,
           };
         } catch (error: unknown) {
           console.error("Auth error:", error);
@@ -147,24 +145,6 @@ const authOptions: NextAuthOptions = {
                 stripe_customer_id: null,
                 stripe_subscription_id: null,
                 subscription_status: null,
-              },
-              select: {
-                id: true,
-                email: true,
-                name: true,
-                image: true,
-                password: true,
-                emailVerified: true,
-                niche: true,
-                platforms: true,
-                credits: true,
-                plan: true,
-                payment_status: true,
-                stripe_customer_id: true,
-                stripe_subscription_id: true,
-                subscription_status: true,
-                createdAt: true,
-                updatedAt: true,
               },
             });
             console.log("Google user created in Prisma:", prismaUser.id);
