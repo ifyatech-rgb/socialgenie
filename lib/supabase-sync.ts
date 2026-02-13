@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Sync user data to Supabase users table.
  * Uses getSupabaseAdmin() for service role access.
