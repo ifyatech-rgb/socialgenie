@@ -57,13 +57,14 @@ async function buildAvatarResponse(freeOnly: boolean) {
 }
 
 export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const showAll = url.searchParams.get("all") === "true";
+  const freeOnly = url.searchParams.get("free") !== "false" && !showAll;
+
   try {
     const email = await getAuthUserEmail(request);
     if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const url = new URL(request.url);
-    const showAll = url.searchParams.get("all") === "true";
-    const freeOnly = url.searchParams.get("free") !== "false" && !showAll;
     const now = Date.now();
     const cache = freeOnly ? cacheFree : cacheAll;
 

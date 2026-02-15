@@ -960,14 +960,14 @@ export default function ScriptsPage() {
       {/* Refinement Modal - Script Preview + AI Chat */}
       {showRefinement && refinementScript && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4 backdrop-blur-sm"
           onClick={() => {
             setShowRefinement(false);
             setRefinementScript(null);
           }}
         >
           <div
-            className="relative grid h-[85vh] w-full max-w-6xl grid-cols-1 gap-6 overflow-hidden rounded-2xl bg-white shadow-2xl md:grid-cols-2"
+            className="relative flex h-[90vh] max-h-[900px] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid lg:grid-cols-2 lg:gap-4 xl:gap-6"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -976,19 +976,20 @@ export default function ScriptsPage() {
                 setShowRefinement(false);
                 setRefinementScript(null);
               }}
-              className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 border-gray-200 bg-white text-gray-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-gray-200 bg-white text-gray-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 touch-manipulation sm:right-4 sm:top-4 sm:h-10 sm:w-10"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
 
-            <div className="flex flex-col gap-4 overflow-hidden p-6">
-              <h3 className="text-lg font-bold text-gray-900">Script Preview</h3>
-              <div className="flex-1 overflow-y-auto rounded-xl border-2 border-gray-200 bg-gray-50/80 p-5">
+            {/* Left: Script Preview - stacks first on mobile */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 sm:p-5 lg:p-6">
+              <h3 className="text-base font-bold text-gray-900 sm:text-lg">Script Preview</h3>
+              <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border-2 border-gray-200 bg-gray-50/80 p-4 sm:p-5 overscroll-contain">
                 <StructuredScriptContent content={refinementScript.content} />
               </div>
               <div className="flex flex-wrap gap-2">
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold sm:px-3 ${
                     (refinementScript.lifecycleStatus ?? "draft") === "draft"
                       ? "bg-amber-100 text-amber-800"
                       : "bg-emerald-100 text-emerald-800"
@@ -996,13 +997,14 @@ export default function ScriptsPage() {
                 >
                   {(refinementScript.lifecycleStatus ?? "draft") === "draft" ? "📝 Draft" : "✅ Finalized"}
                 </span>
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 sm:px-3">
                   {(refinementScript.refinementCount ?? 0)} wishes granted ✨
                 </span>
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-col overflow-hidden p-6">
+            {/* Right: Genie Chat - full height on desktop, constrained on mobile */}
+            <div className="flex min-h-[40vh] flex-1 flex-col overflow-hidden border-t border-gray-200 p-4 sm:p-5 lg:min-h-0 lg:border-t-0 lg:border-l lg:border-gray-200 lg:pl-4 xl:pl-6">
               <ScriptRefinementChat
                 script={{
                   id: refinementScript.id,
