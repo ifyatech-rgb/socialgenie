@@ -21,6 +21,8 @@ interface ConsentStepProps {
   onUserNameChange: (name: string) => void;
   onConsentRecorded?: (blob: Blob | null, url?: string) => void;
   onCanCreateChange?: (canCreate: boolean) => void;
+  /** Optional: when user goes back from consent (e.g. to upload step) */
+  onBack?: () => void;
 }
 
 export function ConsentStep({
@@ -28,19 +30,17 @@ export function ConsentStep({
   onUserNameChange,
   onConsentRecorded,
   onCanCreateChange,
+  onBack,
 }: ConsentStepProps) {
   const ctx = useOptionalAvatarCreation();
 
   const handleComplete = useCallback(
-    (blob: Blob) => {
+    (blob: Blob, verified: boolean) => {
+      if (!verified) return;
       const url = URL.createObjectURL(blob);
       onConsentRecorded?.(blob, url);
       onCanCreateChange?.(true);
-      ctx?.setConsentVideo(
-        blob,
-        formatConsentDuration(0),
-        formatFileSize(blob.size)
-      );
+      ctx?.setConsentVideo(blob, formatConsentDuration(0), formatFileSize(blob.size));
       ctx?.setUserName(userName);
     },
     [userName, onConsentRecorded, onCanCreateChange, ctx]
@@ -48,10 +48,9 @@ export function ConsentStep({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      {/* Optional: name field so script shows "I, [Name], grant..." */}
       <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Your name (for the consent script)
+          Your name (for the consent script and verification)
         </label>
         <input
           type="text"
@@ -64,8 +63,9 @@ export function ConsentStep({
       </div>
 
       <ConsentRecording
-        userName={userName || undefined}
+        userName={userName.trim() || "Your Name"}
         onComplete={handleComplete}
+        onBack={onBack}
       />
     </div>
   );

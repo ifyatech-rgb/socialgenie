@@ -264,6 +264,12 @@ export default function CreateAvatarWizardPage() {
                 onUserNameChange={setUserName}
                 onConsentRecorded={handleConsentRecorded}
                 onCanCreateChange={() => {}}
+                onBack={() => {
+                  setConsentRecorded(false);
+                  setConsentVideoUrl("");
+                  setConsentVideoBlob(null);
+                  setStep(2);
+                }}
               />
             </div>
           )}
