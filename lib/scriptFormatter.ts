@@ -158,19 +158,43 @@ export function extractSections(script: string): { hook: string; content: string
 
 /**
  * Strip section headers and return only the spoken text (for TTS / video generation).
- * Prevents the avatar from reading "HOOK", "CONTENT", "CTA" out loud.
+ * Prevents the avatar from reading "Hook:", "Body:", "CTA:", etc. out loud.
  */
 export function stripSectionHeadersForTTS(script: string): string {
   if (!script || typeof script !== 'string') return ''
 
   let out = script
+    // Emoji-prefixed headers
     .replace(/🎣\s*HOOK:\s*/gi, '')
     .replace(/📝\s*CONTENT:\s*/gi, '')
     .replace(/📢\s*CTA:\s*/gi, '')
     .replace(/^HOOK:\s*/gim, '')
+    .replace(/^Hook:\s*/gim, '')
     .replace(/^CONTENT:\s*/gim, '')
+    .replace(/^Content:\s*/gim, '')
+    .replace(/^BODY:\s*/gim, '')
+    .replace(/^Body:\s*/gim, '')
     .replace(/^CALL TO ACTION:\s*/gim, '')
     .replace(/^CTA:\s*/gim, '')
+    .replace(/^Cta:\s*/gim, '')
+    .replace(/^INTRODUCTION:\s*/gim, '')
+    .replace(/^Introduction:\s*/gim, '')
+    .replace(/^INTRO:\s*/gim, '')
+    .replace(/^Intro:\s*/gim, '')
+    .replace(/^CONCLUSION:\s*/gim, '')
+    .replace(/^Conclusion:\s*/gim, '')
+    .replace(/^OPENING:\s*/gim, '')
+    .replace(/^CLOSING:\s*/gim, '')
+    // Markdown-style headers
+    .replace(/^\*\*Hook:\*\*\s*/gim, '')
+    .replace(/^\*\*Body:\*\*\s*/gim, '')
+    .replace(/^\*\*CTA:\*\*\s*/gim, '')
+    .replace(/^###\s*Hook:?\s*/gim, '')
+    .replace(/^###\s*Body:?\s*/gim, '')
+    .replace(/^###\s*CTA:?\s*/gim, '')
+    .replace(/^##\s*Hook:?\s*/gim, '')
+    .replace(/^##\s*Body:?\s*/gim, '')
+    .replace(/^##\s*CTA:?\s*/gim, '')
 
   out = out
     .split('\n')

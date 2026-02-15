@@ -18,6 +18,13 @@ import {
   Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useCredits } from "@/app/dashboard/credits-context";
+import dynamic from "next/dynamic";
+
+const ScriptRefinementChat = dynamic(
+  () => import("@/components/ScriptRefinementChat"),
+  { loading: () => <div className="p-4 text-gray-500">Loading chat...</div>, ssr: false }
+);
 import { cleanScript, hasVisualDirections } from "@/lib/scriptCleaner";
 import { extractSections, validateScriptStructure } from "@/lib/scriptFormatter";
 
@@ -118,12 +125,16 @@ type ScriptItem = {
   length: number | null;
   content: string;
   status: string | null;
+  lifecycleStatus?: string | null;
+  refinementCount?: number | null;
+  chatHistory?: Array<{ role: string; content: string }> | null;
   createdAt: string;
 };
 
 export default function ScriptsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const creditsFromContext = useCredits();
 
   const [topic, setTopic] = useState("");
   const [platform, setPlatform] = useState<"TikTok" | "Instagram" | "YouTube">("TikTok");
@@ -157,6 +168,8 @@ export default function ScriptsPage() {
   const [showAllScripts, setShowAllScripts] = useState(false);
   const [viewModalScript, setViewModalScript] = useState<ScriptItem | null>(null);
   const [editingScript, setEditingScript] = useState<ScriptItem | null>(null);
+  const [showRefinement, setShowRefinement] = useState(false);
+  const [refinementScript, setRefinementScript] = useState<ScriptItem | null>(null);
   const [editContent, setEditContent] = useState("");
   const [editTopic, setEditTopic] = useState("");
   const [saving, setSaving] = useState(false);
@@ -167,9 +180,23 @@ export default function ScriptsPage() {
     loadSavedScripts();
   }, []);
 
+  // Sync credits when tab becomes visible or dashboard-refresh fires
+  useEffect(() => {
+    const onRefresh = () => loadUserCredits();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadUserCredits();
+    };
+    window.addEventListener("dashboard-refresh", onRefresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("dashboard-refresh", onRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
   async function loadUserCredits() {
     try {
-      const res = await fetch("/api/user", { credentials: "include" });
+      const res = await fetch("/api/user", { credentials: "include", cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setUserCredits(data.user?.credits ?? 0);
@@ -181,7 +208,7 @@ export default function ScriptsPage() {
 
   async function loadSavedScripts() {
     try {
-      const res = await fetch("/api/scripts", { credentials: "include" });
+      const res = await fetch("/api/scripts", { credentials: "include", cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setAllScripts(data.scripts ?? []);
@@ -192,14 +219,7 @@ export default function ScriptsPage() {
   }
 
   async function handleGenerate() {
-    const creditsNeeded = enableResearch ? 3 : 1;
-    const credits = userCredits ?? 0;
-
-    if (credits < creditsNeeded) {
-      setError(`Not enough credits. Need ${creditsNeeded}, have ${credits}`);
-      toast.error(`Need ${creditsNeeded} credits`);
-      return;
-    }
+    // Script generation is FREE (draft). Credits charged only on finalize.
 
     if (!topic.trim() || topic.length < 10) {
       setError("Please provide more details about your topic (at least 10 characters)");
@@ -239,7 +259,9 @@ export default function ScriptsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error ?? "Failed to generate script");
+        const errMsg = data.error ?? "Failed to generate script";
+        const detail = data.detail ? ` ${data.detail}` : "";
+        throw new Error(errMsg + detail);
       }
 
       let scriptContent =
@@ -255,9 +277,13 @@ export default function ScriptsPage() {
       setCurrentScriptId(scriptId);
       setResearchUsed(data.research?.used ?? false);
       setScriptMeta(data.metadata ?? null);
-      setUserCredits(data.creditsRemaining ?? credits - 1);
+      setUserCredits(data.creditsRemaining ?? userCredits);
       loadSavedScripts();
       toast.success("Script generated!");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dashboard-refresh", Date.now().toString());
+        window.dispatchEvent(new CustomEvent("dashboard-refresh"));
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to generate script";
       setError(msg);
@@ -283,7 +309,7 @@ export default function ScriptsPage() {
           platform: p,
         })
       );
-      router.push("/dashboard/avatars");
+      router.push(id ? `/dashboard/avatars?script=${id}` : "/dashboard/avatars");
     } catch {
       toast.error("Could not save script");
     }
@@ -402,9 +428,8 @@ export default function ScriptsPage() {
     toast.success("Form cleared");
   }
 
-  const creditsNeeded = enableResearch ? 3 : 1;
-  const credits = userCredits ?? 0;
-  const canGenerate = credits >= creditsNeeded && topic.trim().length >= 10;
+  const credits = creditsFromContext ?? userCredits ?? 0;
+  const canGenerate = topic.trim().length >= 10;
 
   if (!session) {
     return (
@@ -415,7 +440,7 @@ export default function ScriptsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-6xl w-full min-w-0">
           <div className="mb-6 rounded-xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 p-4">
         <div className="flex gap-4">
           <span className="text-3xl">✨</span>
@@ -444,7 +469,7 @@ export default function ScriptsPage() {
         </button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_380px] min-w-0">
         <div className="rounded-2xl border-2 border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between border-b-2 border-gray-100 pb-4">
             <h2 className="text-lg font-bold text-gray-900">✨ Generate New Script</h2>
@@ -462,7 +487,7 @@ export default function ScriptsPage() {
                 placeholder="Example: How to gain 5kg muscle in 90 days using proven workout strategies and nutrition tips"
                 rows={4}
                 maxLength={500}
-                className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 text-base focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                className="w-full min-h-12 resize-none rounded-xl border-2 border-gray-200 px-4 py-3 text-base focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
               />
               <p className="mt-1 text-right text-xs text-gray-400">{topic.length}/500</p>
             </div>
@@ -470,13 +495,13 @@ export default function ScriptsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-bold text-gray-900">Platform *</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {platforms.map((p) => (
                     <button
                       key={p.id}
-                      type="button"
-                      onClick={() => setPlatform(p.id)}
-                      className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${
+                    type="button"
+                    onClick={() => setPlatform(p.id)}
+                    className={`flex flex-1 min-w-[80px] min-h-12 items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${
                         platform === p.id
                           ? "border-indigo-500 bg-indigo-50 text-indigo-700"
                           : "border-gray-200 bg-white text-gray-700 hover:border-indigo-300"
@@ -511,7 +536,7 @@ export default function ScriptsPage() {
                 value={audience}
                 onChange={(e) => setAudience(e.target.value)}
                 placeholder="e.g., Fitness enthusiasts, Beginners, Entrepreneurs"
-                className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                className="w-full min-h-12 rounded-xl border-2 border-gray-200 px-4 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
               />
             </div>
 
@@ -548,9 +573,8 @@ export default function ScriptsPage() {
                   </div>
                 </label>
                 <div className="flex shrink-0 items-center">
-                  <div className="rounded-xl border-2 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2 text-center">
-                    <span className="text-2xl font-bold text-amber-700">{creditsNeeded}</span>
-                    <span className="ml-1 text-xs font-bold uppercase text-amber-600">credits</span>
+                  <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 px-4 py-2 text-center">
+                    <span className="text-2xl font-bold text-emerald-700">Free</span>
                   </div>
                 </div>
               </div>
@@ -639,7 +663,7 @@ export default function ScriptsPage() {
               type="button"
               onClick={handleGenerate}
               disabled={isGenerating || !canGenerate}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-4 font-bold text-white shadow-lg shadow-indigo-200/50 transition-all hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-4 font-bold text-white shadow-lg shadow-indigo-200/50 transition-all hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-60 min-w-0"
             >
               {isGenerating ? (
                 <>
@@ -647,11 +671,11 @@ export default function ScriptsPage() {
                   {enableResearch ? "Researching & Generating…" : "Generating Script…"}
                 </>
               ) : !canGenerate ? (
-                credits < creditsNeeded ? <>⚠️ Need {creditsNeeded} Credits</> : <>⚠️ Add More Details</>
+                <>⚠️ Add More Details (10+ chars)</>
               ) : (
                 <>
                   <Sparkles className="h-5 w-5" />
-                  Generate Script ({creditsNeeded} {creditsNeeded === 1 ? "Credit" : "Credits"})
+                  Generate Script (Free)
                 </>
               )}
             </button>
@@ -664,7 +688,32 @@ export default function ScriptsPage() {
                   <span className="text-2xl">✅</span>
                   <h3 className="text-lg font-bold text-emerald-800">Your Script is Ready!</h3>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {currentScriptId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefinementScript({
+                          id: currentScriptId,
+                          topic: topic.trim(),
+                          platform,
+                          tone,
+                          length: null,
+                          content: currentScript,
+                          status: "generated",
+                          lifecycleStatus: "draft",
+                          refinementCount: 0,
+                          chatHistory: [],
+                          createdAt: new Date().toISOString(),
+                        });
+                        setShowRefinement(true);
+                      }}
+                      className="flex items-center gap-2 rounded-lg border-2 border-violet-500 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100"
+                    >
+                      <span className="text-lg">🧞‍♂️</span>
+                      Ask Genie
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleCopy}
@@ -755,14 +804,27 @@ export default function ScriptsPage() {
                     <span className="text-xs text-gray-500">{new Date(s.createdAt).toLocaleDateString()}</span>
                   </div>
                   <p className="mb-3 line-clamp-2 text-sm text-gray-600">{s.content.substring(0, 120)}…</p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setViewModalScript(s)}
-                      className="flex-1 rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-indigo-300 hover:text-indigo-700"
+                      className="rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-indigo-300 hover:text-indigo-700"
                     >
                       👁️ View
                     </button>
+                    {(s.lifecycleStatus ?? "draft") === "draft" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRefinementScript(s);
+                          setShowRefinement(true);
+                        }}
+                        className="flex items-center gap-1 rounded-lg border-2 border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                      >
+                        <span className="text-sm">🧞‍♂️</span>
+                        Ask Genie ({(s.refinementCount ?? 0)} wishes)
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => openEditModal(s)}
@@ -784,7 +846,7 @@ export default function ScriptsPage() {
                     <button
                       type="button"
                       onClick={() => handleMakeVideo(s.content, s.id, s.topic ?? "", s.platform)}
-                      className="flex-1 rounded-lg border-2 border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                      className="rounded-lg border-2 border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
                     >
                       🎬 Video
                     </button>
@@ -844,6 +906,20 @@ export default function ScriptsPage() {
               >
                 Close
               </button>
+              {(viewModalScript.lifecycleStatus ?? "draft") === "draft" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefinementScript(viewModalScript);
+                    setViewModalScript(null);
+                    setShowRefinement(true);
+                  }}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-violet-500 px-4 py-2.5 font-semibold text-violet-700 hover:bg-violet-50 min-w-[100px]"
+                >
+                  <span className="text-lg">🧞‍♂️</span>
+                  Ask Genie
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -876,6 +952,87 @@ export default function ScriptsPage() {
                 <Video className="h-4 w-4" />
                 Create Video
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refinement Modal - Script Preview + AI Chat */}
+      {showRefinement && refinementScript && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => {
+            setShowRefinement(false);
+            setRefinementScript(null);
+          }}
+        >
+          <div
+            className="relative grid h-[85vh] w-full max-w-6xl grid-cols-1 gap-6 overflow-hidden rounded-2xl bg-white shadow-2xl md:grid-cols-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setShowRefinement(false);
+                setRefinementScript(null);
+              }}
+              className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 border-gray-200 bg-white text-gray-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="flex flex-col gap-4 overflow-hidden p-6">
+              <h3 className="text-lg font-bold text-gray-900">Script Preview</h3>
+              <div className="flex-1 overflow-y-auto rounded-xl border-2 border-gray-200 bg-gray-50/80 p-5">
+                <StructuredScriptContent content={refinementScript.content} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                    (refinementScript.lifecycleStatus ?? "draft") === "draft"
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {(refinementScript.lifecycleStatus ?? "draft") === "draft" ? "📝 Draft" : "✅ Finalized"}
+                </span>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                  {(refinementScript.refinementCount ?? 0)} wishes granted ✨
+                </span>
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-col overflow-hidden p-6">
+              <ScriptRefinementChat
+                script={{
+                  id: refinementScript.id,
+                  content: refinementScript.content,
+                  lifecycleStatus: refinementScript.lifecycleStatus ?? "draft",
+                  refinementCount: refinementScript.refinementCount ?? 0,
+                  chatHistory: refinementScript.chatHistory ?? undefined,
+                }}
+                onUpdate={(updated) => {
+                  setRefinementScript((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          content: updated.content,
+                          refinementCount: updated.refinementCount ?? prev.refinementCount,
+                          lifecycleStatus: updated.lifecycleStatus ?? prev.lifecycleStatus,
+                          chatHistory: updated.chatHistory ?? prev.chatHistory,
+                        }
+                      : null
+                  );
+                  loadSavedScripts();
+                }}
+                onFinalize={(data) => {
+                  loadUserCredits();
+                  loadSavedScripts();
+                  setShowRefinement(false);
+                  setRefinementScript(null);
+                  toast.success(`Script finalized! Credits remaining: ${data.creditsRemaining}`);
+                }}
+              />
             </div>
           </div>
         </div>

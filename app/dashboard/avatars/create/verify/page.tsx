@@ -46,6 +46,10 @@ export default function VerifyAvatarPage() {
       const data = await response.json();
 
       if (data.success) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("dashboard-refresh", Date.now().toString());
+          window.dispatchEvent(new CustomEvent("dashboard-refresh"));
+        }
         router.push("/dashboard/avatars?success=true");
       } else {
         setError(data.error || "Failed to create avatar");

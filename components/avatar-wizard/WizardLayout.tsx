@@ -70,11 +70,12 @@ export function WizardLayout({
               onClick={onNext}
               disabled={nextDisabled || isLoading}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-4 py-2.5 text-base font-medium focus:outline-none focus:ring-2 focus:ring-[#000000] focus:ring-offset-2 disabled:cursor-not-allowed",
+                "flex items-center gap-1.5 rounded-md px-4 py-2.5 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed",
                 nextDisabled || isLoading
-                  ? "bg-[#D1D5DB] text-[#6B7280]"
-                  : "bg-[#000000] text-white hover:opacity-90"
+                  ? "bg-gray-300 text-gray-500"
+                  : "hover:opacity-90"
               )}
+              style={nextDisabled || isLoading ? undefined : { background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}
               aria-label={primaryLabel}
             >
               {isLoading ? (

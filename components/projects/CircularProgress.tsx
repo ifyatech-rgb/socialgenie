@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
-
 interface CircularProgressProps {
   progress: number;
   size?: number;
@@ -18,7 +16,7 @@ export function CircularProgress({ progress, size = 100, className = "" }: Circu
     <div className={`relative flex flex-col items-center justify-center ${className}`}>
       <svg width={size} height={size} className="-rotate-90" viewBox={`0 0 ${size} ${size}`}>
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={strokeWidth} />
-        <motion.circle
+        <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
@@ -27,9 +25,8 @@ export function CircularProgress({ progress, size = 100, className = "" }: Circu
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 0.5, ease: "easeInOut" }}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.5s ease-in-out" }}
         />
         <defs>
           <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -39,7 +36,7 @@ export function CircularProgress({ progress, size = 100, className = "" }: Circu
         </defs>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }} className="mb-1">
+        <div className="mb-1 animate-spin" style={{ animationDuration: "2s" }}>
           <svg width={32} height={32} viewBox="0 0 24 24" fill="none" className="opacity-90">
             <defs>
               <linearGradient id="gemGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -50,7 +47,7 @@ export function CircularProgress({ progress, size = 100, className = "" }: Circu
             </defs>
             <path d="M12 2L2 7l10 15 10-15L12 2z" fill="url(#gemGradient)" />
           </svg>
-        </motion.div>
+        </div>
         <span className="text-sm font-semibold text-white">{Math.round(progress)}%</span>
       </div>
     </div>

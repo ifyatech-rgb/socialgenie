@@ -91,6 +91,7 @@ export interface PricingUser {
   videosUsedThisMonth?: number;
   scriptsUsedThisMonth?: number;
   customAvatarsCreated?: number;
+  customAvatarsLimit?: number; // max allowed by plan (trial: 1)
   hasCustomAvatar?: boolean;
   isPaid?: boolean;
   nextBillingDate?: string | null;
@@ -121,9 +122,17 @@ export function getVideosRemaining(user: PricingUser): number {
 }
 
 export function canCreateCustomAvatar(user: PricingUser): boolean {
-  const limits = getUserPlanLimits(user);
-  const created = user.customAvatarsCreated ?? (user.hasCustomAvatar ? 1 : 0);
-  return created < limits.customAvatars;
+  const limit = user.customAvatarsLimit ?? getUserPlanLimits(user).customAvatars ?? 1;
+  const used = user.customAvatarsCreated ?? (user.hasCustomAvatar ? 1 : 0);
+  return used < limit;
+}
+
+/** Remaining custom avatar uploads for the user's plan. */
+export function getRemainingCustomAvatarSlots(user: PricingUser): number | "Unlimited" {
+  const limit = user.customAvatarsLimit ?? getUserPlanLimits(user).customAvatars ?? 1;
+  const used = user.customAvatarsCreated ?? 0;
+  if (limit < 0) return "Unlimited"; // -1 or Infinity-style
+  return Math.max(0, limit - used);
 }
 
 export function getScriptsRemaining(user: PricingUser): number | "Unlimited" {

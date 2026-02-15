@@ -12,6 +12,8 @@ interface VerifyStepProps {
   mainDuration?: string;
   consentDuration?: string;
   consentSize?: string;
+  /** When "photo", main media is shown as image instead of video. */
+  mediaType?: "photo" | "video";
 }
 
 export function VerifyStep({
@@ -23,6 +25,7 @@ export function VerifyStep({
   mainDuration: propsMainDuration,
   consentDuration: propsConsentDuration,
   consentSize: propsConsentSize,
+  mediaType = "video",
 }: VerifyStepProps) {
   const ctx = useOptionalAvatarCreation();
   const mainVideoUrl = ctx?.mainVideoUrl ?? propsMainVideoUrl;
@@ -48,24 +51,34 @@ export function VerifyStep({
         <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span aria-hidden>🎥</span>
-              <h2 className="text-xl font-bold text-[#000000]">Your main video</h2>
+              <span aria-hidden>{mediaType === "photo" ? "📸" : "🎥"}</span>
+              <h2 className="text-xl font-bold text-[#000000]">
+                {mediaType === "photo" ? "Your photo" : "Your main video"}
+              </h2>
             </div>
             <span className="rounded-full bg-purple-600 px-4 py-1 text-sm font-medium text-white">
-              MAIN VIDEO
+              {mediaType === "photo" ? "PHOTO" : "MAIN VIDEO"}
             </span>
           </div>
 
           <div className="mb-4 overflow-hidden rounded-lg bg-black">
             {mainVideoUrl ? (
-              <VideoPlayer
-                src={mainVideoUrl}
-                aria-label="Main footage"
-                className="w-full"
-              />
+              mediaType === "photo" ? (
+                <img
+                  src={mainVideoUrl}
+                  alt="Uploaded photo"
+                  className="mx-auto max-h-[400px] w-full object-contain"
+                />
+              ) : (
+                <VideoPlayer
+                  src={mainVideoUrl}
+                  aria-label="Main footage"
+                  className="w-full"
+                />
+              )
             ) : (
               <div className="flex aspect-video items-center justify-center bg-gray-900 text-white">
-                No video loaded
+                {mediaType === "photo" ? "No photo loaded" : "No video loaded"}
               </div>
             )}
           </div>

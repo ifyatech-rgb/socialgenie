@@ -19,7 +19,7 @@ import {
 import { authFetch } from "@/lib/auth-fetch";
 import { toast } from "sonner";
 
-const POLL_INTERVAL_MS = 5000; // Poll every 5s for processing projects (server syncs on GET)
+const POLL_INTERVAL_MS = 10000; // Poll every 10s for processing projects (reduced for performance)
 
 type Project = {
   id: string;
@@ -101,6 +101,10 @@ export default function ProjectsPage() {
     try {
       await loadProjects();
       toast.success("Projects refreshed!");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dashboard-refresh", Date.now().toString());
+        window.dispatchEvent(new CustomEvent("dashboard-refresh"));
+      }
     } catch (e) {
       console.error("Refresh failed:", e);
       toast.error("Refresh failed");
@@ -142,16 +146,13 @@ export default function ProjectsPage() {
       return;
     }
     const interval = setInterval(() => {
-      console.log("[Projects] 🔄 Frontend: Polling for updates...");
+      if (document.visibilityState !== "visible") return;
       authFetch("/api/projects", {}, session)
         .then((res) => res.json())
         .then((data) => {
-          if (data.success && Array.isArray(data.projects)) {
-            console.log("[Projects] 📦 Frontend: Poll received", data.projects.length, "projects, statuses:", data.projects.map((p: Project) => ({ id: p.id, status: p.status, progress: p.progress })));
-            setProjects(data.projects);
-          }
+          if (data.success && Array.isArray(data.projects)) setProjects(data.projects);
         })
-        .catch((err) => console.error("[Projects] ❌ Frontend: Poll failed", err));
+        .catch(() => {});
     }, POLL_INTERVAL_MS);
     pollRef.current = interval;
     return () => {

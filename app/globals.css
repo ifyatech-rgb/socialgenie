@@ -1,3 +1,6 @@
+/* NProgress loading bar (route changes) - @import must be first per CSS spec */
+@import "nprogress/nprogress.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -40,6 +43,12 @@
 
 *::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 body {
@@ -401,6 +410,16 @@ body {
 
 .script-visual {
   @apply bg-blue-100 text-blue-800 px-2 py-0.5 rounded italic;
+}
+
+/* Responsive utilities - prevent horizontal scroll */
+.min-w-0 {
+  min-width: 0;
+}
+
+.break-words {
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Utilities */

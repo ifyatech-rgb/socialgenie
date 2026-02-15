@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { authFetch } from "@/lib/auth-fetch";
@@ -18,10 +17,16 @@ interface DashboardData {
   trainingVideoUrl?: string | null;
   avatarStatus?: string | null;
   scriptsCount: number;
+  draftScriptsCount?: number;
+  finalizedScriptsCount?: number;
   videosCount: number;
   scriptsThisWeek?: number;
   videosThisWeek?: number;
   credits?: number;
+  videoCredits?: number;
+  genieEdits?: number;
+  customAvatarsLimit?: number;
+  customAvatarsUsed?: number;
   subscription?: { status: string; duplicatePaymentMethod?: boolean; trialEndsAt?: string | null } | null;
   recentScripts: Array<{
     id: string;
@@ -109,35 +114,43 @@ export default function DashboardPage() {
     }
   }, [searchParams, data, session]);
 
-  const fetchDashboardData = useCallback(async (isInitial = false) => {
+  const fetchDashboardData = useCallback(async () => {
     if (!session) {
-      if (isInitial) setLoading(false);
+      setLoading(false);
       return;
     }
     try {
-      if (isInitial) setLoading(true);
-      const [dashboardRes, activityRes] = await Promise.all([
-        authFetch("/api/dashboard", {}, session),
-        authFetch("/api/activity?limit=10", {}, session),
-      ]);
-      if (dashboardRes.ok) {
-        const result = await dashboardRes.json();
+      setLoading(true);
+      const res = await authFetch("/api/dashboard", { cache: "no-store" }, session);
+      if (res.ok) {
+        const result = await res.json();
         setData(result);
+        setActivities(result.activities ?? []);
         setStats({
-          credits: result.credits ?? 0,
+          credits: result.videoCredits ?? result.credits ?? 0,
           scriptsCount: result.scriptsCount ?? 0,
           videosCount: result.videosCount ?? 0,
         });
       } else {
-        setData(null);
-        setStats(null);
+        const userRes = await authFetch("/api/user", { cache: "no-store" }, session);
+        if (userRes.ok) {
+          const { user: u } = await userRes.json();
+          const fallback = {
+            scriptsCount: u?.scriptsCount ?? 0,
+            videosCount: u?.videosCount ?? 0,
+            credits: u?.credits ?? 0,
+            recentScripts: [],
+            recentVideos: [],
+            subscription: null,
+          };
+          setData(fallback as DashboardData);
+          setStats({ credits: fallback.credits, scriptsCount: fallback.scriptsCount, videosCount: fallback.videosCount });
+        } else {
+          setData(null);
+          setStats(null);
+        }
       }
-      if (activityRes.ok) {
-        const result = await activityRes.json();
-        setActivities(result.activities || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
+    } catch {
       setData(null);
       setStats(null);
     } finally {
@@ -146,30 +159,20 @@ export default function DashboardPage() {
   }, [session]);
 
   useEffect(() => {
-    fetchDashboardData(true);
+    fetchDashboardData();
   }, [fetchDashboardData]);
-
-  // Re-fetch when user returns to this tab so numbers stay in sync
-  useEffect(() => {
-    const onFocus = () => fetchDashboardData(false);
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [fetchDashboardData]);
-
-  // Poll every 30s for live stats when tab is visible
-  useEffect(() => {
-    if (!session) return;
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") fetchDashboardData(false);
-    }, 30000);
-    return () => clearInterval(id);
-  }, [session, fetchDashboardData]);
 
   const credits = data?.credits ?? 0;
+  const videoCredits = data?.videoCredits ?? data?.credits ?? 0;
+  const genieEdits = data?.genieEdits ?? 0;
   const videosCreated = data?.videosCount ?? 0;
   const scriptsCreated = data?.scriptsCount ?? 0;
+  const draftScripts = data?.draftScriptsCount ?? 0;
+  const finalizedScripts = data?.finalizedScriptsCount ?? 0;
   const scriptsThisWeek = data?.scriptsThisWeek ?? 0;
   const videosThisWeek = data?.videosThisWeek ?? 0;
+  const customAvatarsLimit = data?.customAvatarsLimit ?? 1;
+  const customAvatarsUsed = data?.customAvatarsUsed ?? 0;
   const recentScripts = data?.recentScripts ?? [];
   const recentVideos = data?.recentVideos ?? [];
   const subscriptionStatus = data?.subscription?.status;
@@ -203,18 +206,14 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-[var(--sg-2xl)]">
       {data?.subscription?.duplicatePaymentMethod && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--sg-radius-xl)] border border-amber-300 bg-amber-50 p-4"
-        >
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--sg-radius-xl)] border border-amber-300 bg-amber-50 p-4">
           <span className="text-sm text-amber-800">
             This payment method is already in use. Please sign in or contact support.
           </span>
           <Link href="/auth/signin" className="shrink-0 font-semibold text-amber-700 hover:text-amber-900">
             Sign in →
           </Link>
-        </motion.div>
+        </div>
       )}
 
       {/* Hero Section - Framer style */}
@@ -252,8 +251,12 @@ export default function DashboardPage() {
         {/* Floating cards - hidden on small screens */}
         <div className="relative hidden lg:block h-[320px]">
           <div className="absolute top-8 left-8 sg-card flex items-center gap-3 px-6 py-4 sg-animate-float">
+            <span className="text-3xl">👥</span>
+            <span className="font-bold text-[var(--sg-text-primary)]">100+ UGC Creators</span>
+          </div>
+          <div className="absolute top-10 right-12 sg-card flex items-center gap-3 px-6 py-4 sg-animate-float" style={{ animationDelay: "0.25s" }}>
             <span className="text-3xl">🎭</span>
-            <span className="font-bold text-[var(--sg-text-primary)]">100+ Avatars</span>
+            <span className="font-bold text-[var(--sg-text-primary)]">500+ Avatars</span>
           </div>
           <div className="absolute top-40 right-12 sg-card flex items-center gap-3 px-6 py-4 sg-animate-float" style={{ animationDelay: "0.5s" }}>
             <span className="text-3xl">🎤</span>
@@ -266,47 +269,104 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Stats Grid */}
-      <section className="sg-grid grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="sg-card p-6 sm:p-8 text-center cursor-default">
-          <div className="text-4xl sm:text-5xl mb-3">📝</div>
-          <div className="text-3xl sm:text-4xl font-black bg-[linear-gradient(135deg,#667eea_0%,#764ba2_100%)] bg-clip-text text-transparent mb-1">
-            {scriptsCreated}
+      {/* Stats Grid - gradient cards with hover */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 mt-8">
+        <Link
+          href="/checkout"
+          className="group relative bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-2xl text-white overflow-hidden hover:scale-[1.02] transition-all duration-300 cursor-pointer block"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
+          <div className="relative z-10 mb-3">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <span className="text-3xl">🎬</span>
+            </div>
           </div>
-          <div className="text-sm font-semibold text-[var(--sg-text-secondary)]">Scripts Generated</div>
+          <div className="relative z-10 text-4xl sm:text-5xl font-bold mb-1">{videoCredits}</div>
+          <p className="relative z-10 text-white/90 text-sm font-medium mb-3">Video Credits</p>
+          <span className="relative z-10 text-white font-medium text-sm hover:underline flex items-center gap-1 group-hover:gap-2 transition-all">
+            Get more <span className="transition-transform group-hover:translate-x-1">→</span>
+          </span>
+        </Link>
+
+        <div className="group relative bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-2xl text-white overflow-hidden hover:scale-[1.02] transition-all duration-300 cursor-default">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
+          <div className="relative z-10 mb-3">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <span className="text-3xl">🧞‍♂️</span>
+            </div>
+          </div>
+          <div className="relative z-10 text-4xl sm:text-5xl font-bold mb-1">{genieEdits}</div>
+          <p className="relative z-10 text-white/90 text-sm font-medium mb-1">Genie Edits</p>
+          <p className="relative z-10 text-white/70 text-xs">Script refinements</p>
+        </div>
+
+        <Link
+          href="/dashboard/scripts"
+          className="group relative bg-gradient-to-br from-pink-500 to-rose-600 p-6 rounded-2xl text-white overflow-hidden hover:scale-[1.02] transition-all duration-300 cursor-pointer block"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
+          <div className="relative z-10 mb-3">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <span className="text-3xl">📝</span>
+            </div>
+          </div>
+          <div className="relative z-10 text-4xl sm:text-5xl font-bold mb-1">{scriptsCreated}</div>
+          <p className="relative z-10 text-white/90 text-sm font-medium mb-2">Scripts</p>
+          {draftScripts > 0 && (
+            <span className="relative z-10 inline-block text-xs bg-white/20 px-2 py-1 rounded-full mb-1">
+              {draftScripts} drafts
+            </span>
+          )}
           {scriptsThisWeek > 0 && (
-            <p className="mt-2 text-xs font-bold text-emerald-600">+{scriptsThisWeek} this week</p>
+            <p className="relative z-10 text-white/70 text-xs">+{scriptsThisWeek} this week</p>
           )}
-          <Link href="/dashboard/scripts" className="mt-3 inline-block text-sm font-bold text-[#667eea] hover:text-[#764ba2]">
-            View all →
-          </Link>
-        </div>
-        <div className="sg-card p-6 sm:p-8 text-center cursor-default">
-          <div className="text-4xl sm:text-5xl mb-3">🎬</div>
-          <div className="text-3xl sm:text-4xl font-black bg-[linear-gradient(135deg,#667eea_0%,#764ba2_100%)] bg-clip-text text-transparent mb-1">
-            {videosCreated}
+          <span className="relative z-10 text-white font-medium text-sm hover:underline flex items-center gap-1 group-hover:gap-2 transition-all mt-2">
+            View all <span className="transition-transform group-hover:translate-x-1">→</span>
+          </span>
+        </Link>
+
+        <Link
+          href="/dashboard/avatars"
+          className="group relative bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-2xl text-white overflow-hidden hover:scale-[1.02] transition-all duration-300 cursor-pointer block"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
+          <div className="relative z-10 mb-3">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <span className="text-3xl">✅</span>
+            </div>
           </div>
-          <div className="text-sm font-semibold text-[var(--sg-text-secondary)]">Videos Created</div>
+          <div className="relative z-10 text-4xl sm:text-5xl font-bold mb-1">{videosCreated}</div>
+          <p className="relative z-10 text-white/90 text-sm font-medium mb-2">Videos Created</p>
           {videosThisWeek > 0 && (
-            <p className="mt-2 text-xs font-bold text-emerald-600">+{videosThisWeek} this week</p>
+            <p className="relative z-10 text-white/70 text-xs">+{videosThisWeek} this week</p>
           )}
-          <Link href="/dashboard/avatars" className="mt-3 inline-block text-sm font-bold text-[#667eea] hover:text-[#764ba2]">
-            Create video →
-          </Link>
-        </div>
-        <div className="sg-card p-6 sm:p-8 text-center cursor-default">
-          <div className="text-4xl sm:text-5xl mb-3">💎</div>
-          <div className="text-3xl sm:text-4xl font-black bg-[linear-gradient(135deg,#667eea_0%,#764ba2_100%)] bg-clip-text text-transparent mb-1">
-            {credits}
+          <span className="relative z-10 text-white font-medium text-sm hover:underline flex items-center gap-1 group-hover:gap-2 transition-all">
+            Create video <span className="transition-transform group-hover:translate-x-1">→</span>
+          </span>
+        </Link>
+
+        <Link
+          href={customAvatarsUsed >= customAvatarsLimit ? "/checkout" : "/dashboard/avatars/create"}
+          className="group relative bg-gradient-to-br from-amber-500 to-orange-600 p-6 rounded-2xl text-white overflow-hidden hover:scale-[1.02] transition-all duration-300 cursor-pointer block"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
+          <div className="relative z-10 mb-3">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <span className="text-3xl">🎭</span>
+            </div>
           </div>
-          <div className="text-sm font-semibold text-[var(--sg-text-secondary)]">Credits Left</div>
-          {subscriptionStatus === "trialing" && trialEndsAt && (
-            <p className="mt-2 text-xs font-bold text-amber-600">{getDaysRemaining(trialEndsAt)} days left</p>
-          )}
-          <Link href="/checkout" className="mt-3 inline-block text-sm font-bold text-[#667eea] hover:text-[#764ba2]">
-            Get more →
-          </Link>
-        </div>
+          <div className="relative z-10 text-4xl sm:text-5xl font-bold mb-1">
+            {customAvatarsUsed}/{customAvatarsLimit}
+          </div>
+          <p className="relative z-10 text-white/90 text-sm font-medium mb-1">Custom Avatars</p>
+          <p className="relative z-10 text-white/70 text-xs mb-3">
+            {customAvatarsUsed >= customAvatarsLimit ? "Limit reached" : `${customAvatarsLimit - customAvatarsUsed} remaining`}
+          </p>
+          <span className="relative z-10 text-white font-medium text-sm hover:underline flex items-center gap-1 group-hover:gap-2 transition-all">
+            {customAvatarsUsed >= customAvatarsLimit ? "Upgrade" : "Create avatar"}{" "}
+            <span className="transition-transform group-hover:translate-x-1">→</span>
+          </span>
+        </Link>
       </section>
 
       {/* Quick Actions */}
@@ -501,17 +561,13 @@ export default function DashboardPage() {
       </div>
 
       {/* Low credits warning */}
-      {credits <= 2 && credits >= 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap items-center gap-4 rounded-[var(--sg-radius-2xl)] border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-5"
-        >
+      {videoCredits <= 2 && videoCredits >= 0 && (
+        <div className="flex flex-wrap items-center gap-4 rounded-[var(--sg-radius-2xl)] border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-5">
           <span className="text-3xl">⚠️</span>
           <div className="flex-1">
-            <strong className="block text-amber-800">Low on credits!</strong>
+            <strong className="block text-amber-800">Low on video credits!</strong>
             <p className="text-sm text-amber-700">
-              You have {credits} credits remaining. Get more to keep creating.
+              You have {videoCredits} video credit(s) remaining. Get more to keep creating videos.
             </p>
           </div>
           <Link
@@ -520,7 +576,7 @@ export default function DashboardPage() {
           >
             Get More Credits
           </Link>
-        </motion.div>
+        </div>
       )}
     </div>
   );

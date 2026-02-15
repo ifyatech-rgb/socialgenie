@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { anthropic, extractTextFromResponse, DEFAULT_MODEL } from '@/lib/anthropic'
+import { generateContent, getDefaultModel, handleClaudeError } from '@/lib/claude'
 import { cleanScript } from '@/lib/scriptCleaner'
 import { formatScript } from '@/lib/scriptFormatter'
 
@@ -191,20 +191,16 @@ Now write the script. Start directly with the hook - no preamble. Output pure na
     // 5. Call Claude API
     console.log('Generating script with Claude...', { topic, platform, tone, effectiveLength })
     
-    const response = await anthropic.messages.create({
-      model: DEFAULT_MODEL,
+    const result = await generateContent({
+      system: systemPrompt,
+      userMessage: userPrompt,
+      model: getDefaultModel(),
       max_tokens: 1024,
       temperature: 0.9,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
+      context: 'generateScript',
     })
 
-    let generatedScript = extractTextFromResponse(response)
+    let generatedScript = result.text
 
     if (!generatedScript) {
       throw new Error('No script generated from Claude')
@@ -233,39 +229,16 @@ Now write the script. Start directly with the hook - no preamble. Output pure na
       scriptId: script.id,
       script: generatedScript,
       creditsRemaining: -1, // -1 indicates unlimited in demo mode
-      model: DEFAULT_MODEL,
+      model: getDefaultModel(),
     }
 
     return NextResponse.json(successResponse)
 
-  } catch (error: any) {
-    console.error('Script generation error:', error)
-
-    // Handle specific Anthropic errors
-    if (error?.status === 401) {
-      return NextResponse.json(
-        { error: 'Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY in .env file.' },
-        { status: 401 }
-      )
-    }
-
-    if (error?.status === 429) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again in a moment.' },
-        { status: 429 }
-      )
-    }
-
-    if (error?.status === 402 || error?.message?.includes('credit')) {
-      return NextResponse.json(
-        { error: 'Anthropic API credits exhausted. Please add billing to your Anthropic account.' },
-        { status: 402 }
-      )
-    }
-
+  } catch (error: unknown) {
+    const { message, status } = handleClaudeError(error, 'Generate script')
     return NextResponse.json(
-      { error: error.message || 'Failed to generate script' },
-      { status: 500 }
+      { success: false, error: message },
+      { status }
     )
   }
 }

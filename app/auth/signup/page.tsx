@@ -137,7 +137,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4">
+    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 overflow-x-hidden">
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-purple-900/50 to-gray-900" />
         <div className="absolute top-20 left-20 w-96 h-96 bg-primary/30 rounded-full filter blur-[100px]" />
@@ -145,7 +145,7 @@ export default function SignupPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-secondary/20 rounded-full filter blur-[120px]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 w-full max-w-md mx-4 sm:mx-0">
         <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
           <Link
             href="/"
@@ -154,12 +154,12 @@ export default function SignupPage() {
             <X className="h-5 w-5" />
           </Link>
 
-          <div className="p-8">
+          <div className="p-6 sm:p-8">
             <div className="text-center mb-6">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <LogoIcon size={48} />
               </div>
-              <h1 className="text-2xl font-bold text-white mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-white mb-2">
                 Start your 7-day free trial
               </h1>
               <p className="text-gray-400 text-sm">
@@ -206,7 +206,7 @@ export default function SignupPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1.5">First name *</label>
                   <input
@@ -214,7 +214,7 @@ export default function SignupPage() {
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                     required
                   />
                 </div>
@@ -225,7 +225,7 @@ export default function SignupPage() {
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                     required
                   />
                 </div>
@@ -240,7 +240,7 @@ export default function SignupPage() {
                   onChange={handleChange}
                   onBlur={handleEmailBlur}
                   placeholder="name@example.com"
-                  className={`w-full px-4 py-3 bg-gray-800 border rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 ${
+                  className={`w-full min-h-12 px-4 py-3 bg-gray-800 border rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 ${
                     emailExists ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-gray-700 focus:border-primary focus:ring-primary"
                   }`}
                   required
@@ -256,7 +256,7 @@ export default function SignupPage() {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="Min 8 characters"
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary pr-12"
+                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary pr-12"
                     required
                     minLength={8}
                   />
@@ -279,7 +279,7 @@ export default function SignupPage() {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder="Confirm password"
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary pr-12"
+                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary pr-12"
                     required
                   />
                   <button
@@ -295,7 +295,7 @@ export default function SignupPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="signup-trial-button w-full py-4 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30"
+                className="signup-trial-button w-full min-h-12 sm:min-h-14 py-4 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-base sm:text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30 min-w-0"
               >
                 <div className="button-content flex items-center justify-center gap-2">
                   {loading ? (

@@ -306,23 +306,27 @@ async function syncLegacyScript(
   }
 }
 
+const PROJECTS_CACHE_MS = 15_000; // 15s - short cache to reduce HeyGen sync calls
+const projectsCache = new Map<string, { data: object; cacheTime: number }>();
+
 /**
  * GET /api/projects
  * Returns all video projects for the current user with ACTUAL status (syncs processing projects with D-ID/HeyGen first).
  * - GeneratedVideo rows (HeyGen studio flow) with script details
  * - Scripts with video data that don't have a GeneratedVideo (legacy script generate-video flow)
+ * Responses cached per user for 15s for performance.
  */
 export async function GET(request: NextRequest) {
-  console.log("========================================");
-  console.log("[Projects] 📊 GET /api/projects called at:", new Date().toISOString());
-
   try {
     const userId = await getCurrentUserId(request);
     if (!userId) {
-      console.log("[Projects] ❌ Unauthorized (no userId)");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    console.log("[Projects] userId:", userId);
+
+    const cached = projectsCache.get(userId);
+    if (cached && Date.now() - cached.cacheTime < PROJECTS_CACHE_MS) {
+      return NextResponse.json({ ...cached.data, cached: true });
+    }
 
     type GeneratedVideoWithScript = Awaited<
       ReturnType<
@@ -476,16 +480,16 @@ export async function GET(request: NextRequest) {
     projects.forEach((p) => {
       console.log(`[Projects]   Response project: id=${p.id} status=${p.status} progress=${p.progress} videoUrl=${p.videoUrl ? "yes" : "no"}`);
     });
-    console.log("========================================\n");
-
-    return NextResponse.json({
+    const responseData = {
       success: true,
       total,
       inProgress,
       completed,
       failed,
       projects,
-    });
+    };
+    projectsCache.set(userId, { data: responseData, cacheTime: Date.now() });
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error("[Projects] ❌ FATAL ERROR in GET /api/projects:", error);
     return NextResponse.json(

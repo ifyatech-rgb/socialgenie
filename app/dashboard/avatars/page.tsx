@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -15,6 +15,7 @@ import {
   X,
   Search,
 } from "lucide-react";
+import { useCredits } from "@/app/dashboard/credits-context";
 import { authFetch } from "@/lib/auth-fetch";
 import { toast } from "sonner";
 
@@ -22,6 +23,7 @@ const PENDING_SCRIPT_KEY = "pendingScript";
 const SELECTED_AVATAR_KEY = "selectedAvatarId";
 const POLL_INTERVAL_MS = 5000;
 const VIDEO_CREDITS = 5;
+const AVATARS_PER_PAGE = 20;
 
 type PendingScript = { scriptId?: string; script: string; topic: string; platform: string };
 type AvatarItem = {
@@ -45,6 +47,7 @@ export default function AvatarsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
+  const creditsFromContext = useCredits();
   const [pendingScript, setPendingScript] = useState<PendingScript | null>(null);
   const [avatars, setAvatars] = useState<AvatarItem[]>([]);
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarItem | null>(null);
@@ -83,6 +86,7 @@ export default function AvatarsPage() {
   const [loadingScriptsForPicker, setLoadingScriptsForPicker] = useState(false);
   const [selectedScriptForPicker, setSelectedScriptForPicker] = useState<ScriptListItem | null>(null);
   const [videoAspectRatio, setVideoAspectRatio] = useState<"9:16" | "16:9">("9:16");
+  const [avatarPage, setAvatarPage] = useState(1);
 
   // Custom avatar creation wizard
   const [creationStep, setCreationStep] = useState<1 | 2 | 3 | 4>(1);
@@ -288,6 +292,10 @@ export default function AvatarsPage() {
               const u = await r.json();
               setCredits(u.user?.credits ?? 0);
             }
+            if (typeof window !== "undefined") {
+              localStorage.setItem("dashboard-refresh", Date.now().toString());
+              window.dispatchEvent(new CustomEvent("dashboard-refresh"));
+            }
           });
         } else if (data.status === "failed") {
           setVideoStatus("failed");
@@ -304,7 +312,8 @@ export default function AvatarsPage() {
       toast.error("Please select an avatar and voice");
       return;
     }
-    if (credits !== null && credits < VIDEO_CREDITS) {
+    const effectiveCredits = creditsFromContext ?? credits;
+    if (effectiveCredits !== null && effectiveCredits < VIDEO_CREDITS) {
       toast.error(`Need ${VIDEO_CREDITS} credits`);
       return;
     }
@@ -336,8 +345,12 @@ export default function AvatarsPage() {
       }
       setVideoId(data.videoId ?? null);
       setVideoStatus("processing");
-      setCredits(data.remainingCredits ?? credits);
+      setCredits(data.remainingCredits ?? effectiveCredits);
       toast.success("Video generation started (2–5 min)");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dashboard-refresh", Date.now().toString());
+        window.dispatchEvent(new CustomEvent("dashboard-refresh"));
+      }
     } catch (e) {
       toast.error(String(e));
       setIsGenerating(false);
@@ -492,10 +505,21 @@ export default function AvatarsPage() {
       }
 
       const res = await authFetch("/api/heygen/create-avatar", { method: "POST", body: formData }, session);
-      const data = await res.json();
+      const text = await res.text();
+      let data: Record<string, unknown> = {};
+      try {
+        if (text.trim().length > 0 && !text.trimStart().startsWith("<")) {
+          data = JSON.parse(text) as Record<string, unknown>;
+        }
+      } catch {
+        data = { error: "InvalidResponse", message: "Server returned an invalid response. Please try again." };
+      }
 
+      if (!res.ok) {
+        throw new Error((data?.message as string) ?? (data?.error as string) ?? "Failed to create avatar");
+      }
       if (!data.success) {
-        throw new Error(data.message ?? data.error ?? "Failed to create avatar");
+        throw new Error((data?.message as string) ?? (data?.error as string) ?? "Failed to create avatar");
       }
 
       const timeEstimate = avatarType === "photo" ? "5-15 minutes" : "15-30 minutes";
@@ -707,16 +731,19 @@ export default function AvatarsPage() {
     setCreationStep(4);
   }, [stopConsentCamera]);
 
-  const canGenerate = !!selectedAvatar && !!selectedVoice && credits !== null && credits >= VIDEO_CREDITS;
+  const effectiveCredits = creditsFromContext ?? credits;
+  const canGenerate = !!selectedAvatar && !!selectedVoice && effectiveCredits !== null && effectiveCredits >= VIDEO_CREDITS;
 
-  const filteredAvatars = avatars.filter((a) => {
-    const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesGender = genderFilter === "all" || (a.gender?.toLowerCase() ?? "") === genderFilter.toLowerCase();
-    return matchesSearch && matchesGender;
-  });
+  const filteredAvatars = useMemo(() => {
+    return avatars.filter((a) => {
+      const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesGender = genderFilter === "all" || (a.gender?.toLowerCase() ?? "") === genderFilter.toLowerCase();
+      return matchesSearch && matchesGender;
+    });
+  }, [avatars, searchQuery, genderFilter]);
 
-  /** Group avatars by base name for folder display (same avatar, multiple looks) */
-  const avatarGroups = (() => {
+  /** Group avatars by base name for folder display (same avatar, multiple looks). Always use this for consistent organized view. */
+  const avatarGroups = useMemo(() => {
     const map = new Map<string, AvatarItem[]>();
     for (const a of filteredAvatars) {
       const base = getAvatarBaseName(a.name);
@@ -726,7 +753,17 @@ export default function AvatarsPage() {
     return Array.from(map.entries())
       .map(([baseName, looks]) => ({ baseName, looks: looks.sort((x, y) => x.name.localeCompare(y.name)) }))
       .sort((a, b) => a.baseName.localeCompare(b.baseName));
-  })();
+  }, [filteredAvatars, getAvatarBaseName]);
+
+  const totalAvatarPages = Math.max(1, Math.ceil(avatarGroups.length / AVATARS_PER_PAGE));
+  const paginatedAvatarGroups = useMemo(() => {
+    const start = (avatarPage - 1) * AVATARS_PER_PAGE;
+    return avatarGroups.slice(start, start + AVATARS_PER_PAGE);
+  }, [avatarGroups, avatarPage]);
+
+  useEffect(() => {
+    setAvatarPage(1);
+  }, [searchQuery, genderFilter]);
 
   if (!session) return <div className="flex min-h-[200px] items-center justify-center text-gray-500">Loading...</div>;
 
@@ -771,10 +808,7 @@ export default function AvatarsPage() {
               <button
                 type="button"
                 className="create-avatar-btn"
-                onClick={() => {
-                  resetCreationForm();
-                  setShowCreateModal(true);
-                }}
+                onClick={() => router.push("/dashboard/avatars/create")}
               >
                 <span className="btn-icon">🎭</span>
                 <span>Create Your Avatar</span>
@@ -841,7 +875,7 @@ export default function AvatarsPage() {
         {!loadingAvatars && !error && avatarGroups.length > 0 && (
           <>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {avatarGroups.map(({ baseName, looks }) => {
+              {paginatedAvatarGroups.map(({ baseName, looks }) => {
                 const first = looks[0];
                 const isSelected = browseSelectedAvatar && looks.some((l) => l.id === browseSelectedAvatar.id);
                 const lookCount = looks.length;
@@ -863,6 +897,7 @@ export default function AvatarsPage() {
                           src={first.preview}
                           alt={baseName}
                           className="h-full w-full object-cover"
+                          loading="lazy"
                           onError={(e) => ((e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Crect fill='%23f0f0f0' width='300' height='400'/%3E%3Ctext fill='%23999' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle'%3E👤%3C/text%3E%3C/svg%3E")}
                         />
                       ) : (
@@ -885,6 +920,29 @@ export default function AvatarsPage() {
                 );
               })}
             </div>
+            {avatarGroups.length > AVATARS_PER_PAGE && (
+              <div className="mt-6 flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setAvatarPage((p) => Math.max(1, p - 1))}
+                  disabled={avatarPage <= 1}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-gray-600">
+                  Page {avatarPage} of {totalAvatarPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAvatarPage((p) => Math.min(totalAvatarPages, p + 1))}
+                  disabled={avatarPage >= totalAvatarPages}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -913,13 +971,18 @@ export default function AvatarsPage() {
               </div>
               <div className="max-h-[70vh] overflow-y-auto p-4">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                  {looksModalFolder.looks.map((look) => (
+                  {looksModalFolder.looks.map((look, index) => (
                     <button
-                      key={look.id}
+                      key={`${look.id}-${index}`}
                       type="button"
                       onClick={() => {
-                        setBrowseSelectedAvatar(look);
-                        setLooksModalFolder(null);
+                        if (pendingScript) {
+                          handleAvatarSelect(look);
+                          setLooksModalFolder(null);
+                        } else {
+                          setBrowseSelectedAvatar(look);
+                          setLooksModalFolder(null);
+                        }
                       }}
                       className="flex flex-col overflow-hidden rounded-xl border-2 border-gray-200 bg-white text-left transition hover:border-violet-400 hover:shadow-md"
                     >
@@ -929,6 +992,7 @@ export default function AvatarsPage() {
                             src={look.preview}
                             alt={look.name}
                             className="h-full w-full object-cover"
+                            loading="lazy"
                             onError={(e) => ((e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Crect fill='%23f0f0f0' width='300' height='400'/%3E%3Ctext fill='%23999' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle'%3E👤%3C/text%3E%3C/svg%3E")}
                           />
                         ) : (
@@ -2020,37 +2084,73 @@ export default function AvatarsPage() {
             <span className="ml-3 text-gray-600">Loading...</span>
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {avatars.map((avatar) => (
-              <div
-                key={avatar.id}
-                onClick={() => handleAvatarSelect(avatar)}
-                className={`relative cursor-pointer overflow-hidden rounded-xl border-2 transition-all hover:-translate-y-0.5 hover:shadow-lg ${
-                  selectedAvatar?.id === avatar.id ? "border-violet-500 shadow ring-2 ring-violet-500/30" : "border-gray-200 hover:border-violet-300"
-                }`}
-              >
-                <div className="aspect-[3/4] w-full bg-gray-100">
-                  {avatar.preview ? (
-                    <img src={avatar.preview} alt={avatar.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-4xl text-gray-400">👤</div>
-                  )}
-                  {avatar.isCustom && (
-                    <div className="absolute left-2 top-2 rounded bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800">Custom</div>
+            {paginatedAvatarGroups.map(({ baseName, looks }) => {
+              const first = looks[0];
+              const isSelected = selectedAvatar && looks.some((l) => l.id === selectedAvatar.id);
+              const lookCount = looks.length;
+              return (
+                <div
+                  key={baseName + first.id}
+                  onClick={() =>
+                    lookCount === 1 ? handleAvatarSelect(first) : setLooksModalFolder({ baseName, looks })
+                  }
+                  className={`relative cursor-pointer overflow-hidden rounded-xl border-2 transition-all hover:-translate-y-0.5 hover:shadow-lg ${
+                    isSelected ? "border-violet-500 shadow ring-2 ring-violet-500/30" : "border-gray-200 hover:border-violet-300"
+                  }`}
+                >
+                  <div className="aspect-[3/4] w-full bg-gray-100">
+                    {first.preview ? (
+                      <img
+                        src={first.preview}
+                        alt={baseName}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        onError={(e) => ((e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Crect fill='%23f0f0f0' width='300' height='400'/%3E%3Ctext fill='%23999' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle'%3E👤%3C/text%3E%3C/svg%3E")}
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-4xl text-gray-400">👤</div>
+                    )}
+                    {first.isCustom && (
+                      <div className="absolute left-2 top-2 rounded bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800">Custom</div>
+                    )}
+                  </div>
+                  <div className="border-t border-gray-100 bg-white p-3">
+                    <div className="truncate text-sm font-semibold text-gray-900">{baseName}</div>
+                    <div className="mt-0.5 text-xs text-gray-500">{lookCount === 1 ? "1 look" : `${lookCount} looks`}</div>
+                  </div>
+                  {isSelected && (
+                    <div className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-purple-600 text-lg font-bold text-white shadow-lg">✓</div>
                   )}
                 </div>
-                <div className="border-t border-gray-100 bg-white p-3">
-                  <div className="truncate text-sm font-semibold text-gray-900">{avatar.name}</div>
-                  {avatar.gender && (
-                    <span className="mt-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 capitalize">{avatar.gender}</span>
-                  )}
-                </div>
-                {selectedAvatar?.id === avatar.id && (
-                  <div className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-purple-600 text-lg font-bold text-white shadow-lg">✓</div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
+          {avatarGroups.length > AVATARS_PER_PAGE && (
+            <div className="mt-6 flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => setAvatarPage((p) => Math.max(1, p - 1))}
+                disabled={avatarPage <= 1}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {avatarPage} of {totalAvatarPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setAvatarPage((p) => Math.min(totalAvatarPages, p + 1))}
+                disabled={avatarPage >= totalAvatarPages}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
         )}
       </div>
 
@@ -2185,7 +2285,7 @@ export default function AvatarsPage() {
                 Generating Video...
               </>
             ) : !canGenerate ? (
-              credits !== null && credits < VIDEO_CREDITS ? <>Need {VIDEO_CREDITS} Credits</> : <>Select Avatar & Voice</>
+              effectiveCredits !== null && effectiveCredits < VIDEO_CREDITS ? <>Need {VIDEO_CREDITS} Credits</> : <>Select Avatar & Voice</>
             ) : (
               <>
                 <Video className="h-5 w-5" />

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Copy,
@@ -431,6 +430,11 @@ export default function ScriptViewPage() {
               toast.success('Video generated successfully!');
               setGeneratingVideo(false);
               setVideoProgress('');
+              if (typeof window !== "undefined") {
+                localStorage.setItem("dashboard-refresh", Date.now().toString());
+                window.dispatchEvent(new CustomEvent("dashboard-refresh"));
+                window.dispatchEvent(new Event("credits-updated"));
+              }
               return;
             }
 
@@ -497,11 +501,7 @@ export default function ScriptViewPage() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-4xl mx-auto"
-    >
+    <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-8">
         <button
@@ -1147,6 +1147,6 @@ export default function ScriptViewPage() {
           )}
         </div>
       </Modal>
-    </motion.div>
+    </div>
   );
 }

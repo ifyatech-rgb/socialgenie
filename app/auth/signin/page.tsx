@@ -177,7 +177,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4">
+    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 overflow-x-hidden">
       {/* Background with blur effect */}
       <div className="fixed inset-0 z-0">
         {/* Gradient background with animated blobs */}
@@ -198,7 +198,7 @@ export default function SignInPage() {
       </div>
 
       {/* Modal Card */}
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 w-full max-w-md mx-4 sm:mx-0">
         <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
           {/* Close button */}
           <Link 
@@ -208,13 +208,13 @@ export default function SignInPage() {
             <X className="h-5 w-5" />
           </Link>
 
-          <div className="p-8">
+          <div className="p-6 sm:p-8">
             {/* Header */}
             <div className="text-center mb-8">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <LogoIcon size={48} />
               </div>
-              <h1 className="text-2xl font-bold text-white mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-white mb-2">
                 Welcome to Voxara!
               </h1>
               <p className="text-gray-400 text-sm">
@@ -239,7 +239,7 @@ export default function SignInPage() {
             {/* Google Sign In */}
             <button
               onClick={handleGoogleSignIn}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-white font-medium transition-colors mb-6"
+              className="w-full min-h-12 flex items-center justify-center gap-3 px-4 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-white font-medium transition-colors mb-6"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -266,7 +266,7 @@ export default function SignInPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Name fields - only for signup */}
               {!isLogin && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1.5">
                       <span className="text-accent">*</span> First name
@@ -276,7 +276,7 @@ export default function SignInPage() {
                       name="firstName"
                       value={formData.firstName}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                      className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                       required={!isLogin}
                     />
                   </div>
@@ -289,7 +289,7 @@ export default function SignInPage() {
                       name="lastName"
                       value={formData.lastName}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                      className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                       required={!isLogin}
                     />
                   </div>
@@ -307,7 +307,7 @@ export default function SignInPage() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="name@example.com"
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                  className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                   required
                 />
               </div>
@@ -324,7 +324,7 @@ export default function SignInPage() {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="Enter Password"
-                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors pr-12"
+                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors pr-12"
                     required
                   />
                   <button
@@ -350,7 +350,7 @@ export default function SignInPage() {
                       value={formData.confirmPassword}
                       onChange={handleChange}
                       placeholder="Enter Password"
-                      className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors pr-12"
+                      className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors pr-12"
                       required={!isLogin}
                     />
                     <button
@@ -407,8 +407,8 @@ export default function SignInPage() {
                 disabled={loading}
                 className={
                   isLogin
-                    ? "w-full py-3.5 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
-                    : "signup-trial-button w-full py-4 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30"
+                    ? "w-full min-h-12 py-3.5 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25 min-w-0"
+                    : "signup-trial-button w-full min-h-12 sm:min-h-14 py-4 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-base sm:text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30 min-w-0"
                 }
               >
                 {loading ? (

@@ -5,25 +5,32 @@ import { getHeyGenClient } from "@/lib/heygenClient";
 import { cleanScript } from "@/lib/scriptCleaner";
 import { stripSectionHeadersForTTS } from "@/lib/scriptFormatter";
 import { trackCreditsUsage, trackVideoGeneration } from "@/lib/tracking";
+import { calculateVideoCreditCost, canCreateVideo } from "@/lib/plans";
 
-const VIDEO_CREDITS = 5;
 export const dynamic = "force-dynamic";
+
+/** Estimate duration in seconds from script word count (~2.5 words per second). */
+function estimateDurationSeconds(script: string): number {
+  const words = script.trim().split(/\s+/).filter(Boolean).length;
+  return Math.min(300, Math.max(15, Math.ceil(words / 2.5)));
+}
 
 export async function POST(request: NextRequest) {
   try {
     const email = await getAuthUserEmail(request);
     if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await prisma.user.findUnique({ where: { email }, select: { id: true, credits: true } });
+    const emailNormalized = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({
+      where: { email: emailNormalized },
+      select: {
+        id: true,
+        credits: true,
+        videoCredits: true,
+        videoCreditsUsed: true,
+      },
+    });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-    if ((user.credits ?? 0) < VIDEO_CREDITS) {
-      return NextResponse.json({
-        error: "insufficient_credits",
-        message: `Need ${VIDEO_CREDITS} credits`,
-        currentCredits: user.credits ?? 0,
-        needed: VIDEO_CREDITS,
-      }, { status: 402 });
-    }
 
     let body: { script: string; avatarId: string; voiceId: string; platform?: string; scriptId?: string; aspectRatio?: string };
     try {
@@ -38,6 +45,21 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanedScript = stripSectionHeadersForTTS(cleanScript(script.trim()));
+    const estimatedDuration = estimateDurationSeconds(cleanedScript);
+    const creditCost = calculateVideoCreditCost(estimatedDuration);
+    const videoCreditsAvailable = user.videoCredits ?? user.credits ?? 0;
+    if (!canCreateVideo({ videoCredits: videoCreditsAvailable }, estimatedDuration)) {
+      return NextResponse.json(
+        {
+          error: "insufficient_credits",
+          message: `Need ${creditCost} video credit(s) for this length (≈${estimatedDuration}s)`,
+          currentCredits: videoCreditsAvailable,
+          needed: creditCost,
+          upgradeRequired: true,
+        },
+        { status: 402 }
+      );
+    }
 
     const heygen = getHeyGenClient();
     const details = await heygen.getAvatarDetailsWithResolution(avatarId.trim());
@@ -65,26 +87,31 @@ export async function POST(request: NextRequest) {
       background: { type: "color", value: "#000000" },
     });
 
-    const newBalance = Math.max(0, (user.credits ?? 0) - VIDEO_CREDITS);
+    const newVideoCredits = Math.max(0, videoCreditsAvailable - creditCost);
+    const newCreditsLegacy = Math.max(0, (user.credits ?? 0) - creditCost);
     await prisma.user.update({
       where: { id: user.id },
-      data: { credits: newBalance },
+      data: {
+        videoCredits: newVideoCredits,
+        videoCreditsUsed: (user.videoCreditsUsed ?? 0) + creditCost,
+        credits: newCreditsLegacy,
+      },
     });
 
     trackCreditsUsage({
       user_id: user.id,
-      amount: -VIDEO_CREDITS,
+      amount: -creditCost,
       reason: "heygen_video_generation",
       reference_type: "video",
       reference_id: videoResult.videoId,
-      balance_after: newBalance,
+      balance_after: newVideoCredits,
     });
     trackVideoGeneration({
       user_id: user.id,
       video_id: videoResult.videoId,
       provider: "heygen",
       status: "processing",
-      credits_used: VIDEO_CREDITS,
+      credits_used: creditCost,
     });
 
     let projectId: string | null = null;
@@ -145,8 +172,8 @@ export async function POST(request: NextRequest) {
       progress: 10,
       resolution: `${dimension.width}x${dimension.height}`,
       aspectRatio,
-      creditsUsed: VIDEO_CREDITS,
-      remainingCredits: newBalance,
+      creditsUsed: creditCost,
+      remainingCredits: newVideoCredits,
     });
   } catch (error) {
     console.error("[HeyGen Generate] Failed:", error);

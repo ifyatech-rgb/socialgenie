@@ -1,10 +1,11 @@
-import { anthropic } from './anthropic'
+import { generateContent, getDefaultModel } from './claude'
 
 /**
  * Competitor Research System
  * 
- * Uses Claude's web search capability to analyze viral content
- * and extract insights before generating scripts.
+ * Uses Claude to analyze viral content patterns and extract insights
+ * before generating scripts. Uses model knowledge (web_search tool requires
+ * newer models - claude-sonnet-4+, claude-3-7-sonnet, etc.).
  */
 
 // Research insights interface
@@ -73,27 +74,10 @@ export async function researchNiche(
   console.log(`[Research] Cache miss for ${cacheKey}, performing web research...`)
 
   try {
-    // Create abort controller for timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    const result = await generateContent({
+      userMessage: `You are an expert in viral social media content. Based on your knowledge of viral ${niche} content on ${platform}, provide insights about what's working in 2024-2025.
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250514',
-      max_tokens: 2048,
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-        } as any, // Type assertion needed for beta tool
-      ],
-      messages: [
-        {
-          role: 'user',
-          content: `Research viral ${niche} content on ${platform} in 2025. I need to understand what's working right now to create better content.
-
-Search for: "viral ${niche} content ${platform} 2025" and "top ${niche} creators ${platform} trends"
-
-After searching, analyze and provide insights in this EXACT JSON format:
+Analyze viral content patterns, trending formats, and what top creators in this niche are doing successfully. Provide insights in this EXACT JSON format:
 
 {
   "viralHooks": ["list of 5-7 hook formulas that are currently going viral in this niche"],
@@ -108,49 +92,44 @@ After searching, analyze and provide insights in this EXACT JSON format:
   "whatDoesntWork": ["list of 3-5 things to avoid"]
 }
 
-Be specific with current trends and real examples. Focus on actionable insights.
+Be specific with trends and examples. Focus on actionable insights.
 Output ONLY the JSON, no other text.`,
-        },
-      ],
-    }, {
-      signal: controller.signal,
-    } as any)
+      model: getDefaultModel(),
+      max_tokens: 1500,
+      temperature: 0.3,
+      context: 'researchNiche',
+    })
 
-    clearTimeout(timeoutId)
-
-    // Extract text content from response
-    let researchText = ''
-    for (const block of response.content) {
-      if (block.type === 'text') {
-        researchText = block.text
-        break
-      }
-    }
+    const researchText = result.text
 
     if (!researchText) {
       console.error('[Research] No text content in response')
       return null
     }
 
-    // Parse JSON from response (handle potential markdown code blocks)
+    // Parse JSON from response (handle markdown blocks and extra text)
     let jsonStr = researchText
     if (researchText.includes('```json')) {
       jsonStr = researchText.split('```json')[1].split('```')[0].trim()
     } else if (researchText.includes('```')) {
       jsonStr = researchText.split('```')[1].split('```')[0].trim()
     }
+    // Extract JSON object if model added preamble/suffix
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
+    if (jsonMatch) jsonStr = jsonMatch[0]
 
-    const parsed = JSON.parse(jsonStr)
+    const parsed = JSON.parse(jsonStr) as Record<string, unknown>
 
-    // Validate and build research object
+    // Validate and build research object (tolerate slight key variations)
+    const insights = (parsed.audienceInsights && typeof parsed.audienceInsights === 'object') ? parsed.audienceInsights as Record<string, unknown> : {}
     const research: CompetitorResearch = {
       viralHooks: Array.isArray(parsed.viralHooks) ? parsed.viralHooks : [],
       winningPatterns: Array.isArray(parsed.winningPatterns) ? parsed.winningPatterns : [],
       trendingTopics: Array.isArray(parsed.trendingTopics) ? parsed.trendingTopics : [],
       topCreators: Array.isArray(parsed.topCreators) ? parsed.topCreators : [],
       audienceInsights: {
-        painPoints: parsed.audienceInsights?.painPoints || [],
-        desires: parsed.audienceInsights?.desires || [],
+        painPoints: Array.isArray(insights.painPoints) ? insights.painPoints : [],
+        desires: Array.isArray(insights.desires) ? insights.desires : [],
       },
       whatWorks: Array.isArray(parsed.whatWorks) ? parsed.whatWorks : [],
       whatDoesntWork: Array.isArray(parsed.whatDoesntWork) ? parsed.whatDoesntWork : [],

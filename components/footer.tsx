@@ -62,7 +62,7 @@ export function Footer() {
       <div className="h-1 bg-gradient-to-r from-primary via-secondary to-accent" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 lg:gap-12">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 sm:gap-8 lg:gap-12">
           {/* Brand Column */}
           <div className="col-span-2">
             <div className="mb-6">
@@ -151,16 +151,16 @@ export function Footer() {
               <h4 className="font-semibold text-white mb-1">Stay in the loop</h4>
               <p className="text-gray-400 text-sm">Get the latest updates on new features and releases.</p>
             </div>
-            <form onSubmit={handleSubmit} className="flex gap-3 max-w-md w-full lg:w-auto">
+            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md w-full lg:w-auto">
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                className="flex-1 lg:w-64 h-11 px-4 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary transition-colors"
+                className="flex-1 w-full min-h-12 lg:w-64 px-4 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary transition-colors"
                 required
               />
-              <Button type="submit" loading={loading} icon={<ArrowRight className="h-4 w-4" />} iconPosition="right">
+              <Button type="submit" loading={loading} icon={<ArrowRight className="h-4 w-4" />} iconPosition="right" className="w-full sm:w-auto min-h-12">
                 Subscribe
               </Button>
             </form>

@@ -3,13 +3,15 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Check, ChevronDown } from "lucide-react"
-import { Navbar } from "@/components/navbar"
+import Navbar from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Section } from "@/components/ui/section"
+import { PLANS, type PlanKey } from "@/lib/plans"
 
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const planKeys: PlanKey[] = ["trial", "creator", "professional", "enterprise"]
 
   return (
     <div className="min-h-screen bg-light">
@@ -23,7 +25,7 @@ export default function PricingPage() {
               Simple, Transparent Pricing
             </h1>
             <p className="subtitle text-xl text-gray-600 mb-2">
-              Try free for 7 days, then just $19/month
+              Start free for 7 days • Creator $39 • Pro $79 • Enterprise $199
             </p>
             <p className="no-commitment text-gray-500 text-sm">
               Cancel anytime • No hidden fees • No contracts
@@ -33,124 +35,69 @@ export default function PricingPage() {
 
         {/* Main Pricing Cards */}
         <Section background="light" padding="lg">
-          <div className="pricing-container grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* TRIAL CARD */}
-            <div className="pricing-card trial-card bg-white rounded-2xl border-2 border-gray-200 p-8 relative overflow-hidden">
-              <div className="card-ribbon absolute top-0 right-0 bg-emerald-500 text-white text-xs font-bold px-4 py-1 rounded-bl-lg">
-                FREE TRIAL
-              </div>
-              <div className="card-header mb-6">
-                <h2 className="text-2xl font-bold text-dark mb-2">7-Day Free Trial</h2>
-                <div className="price-display flex items-baseline gap-2 mb-2">
-                  <span className="price-main text-4xl font-bold text-dark">$0</span>
-                  <span className="price-period text-gray-500">for 7 days</span>
-                </div>
-                <p className="card-description text-gray-600 text-sm">
-                  Test the platform risk-free
-                </p>
-              </div>
-
-              <Link href="/auth/signup" className="block mb-6">
-                <Button fullWidth size="lg">
-                  Start Writing Scripts
-                </Button>
-              </Link>
-
-              <div className="card-features space-y-6">
-                <div className="feature-group">
-                  <h3 className="font-semibold text-dark mb-3">Trial Includes:</h3>
-                  <ul className="feature-list space-y-2 text-sm text-gray-600">
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      10 viral scripts
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      All platforms (YouTube, TikTok, Instagram, Twitter)
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      Viral score analysis
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      Basic trending topics
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      1 script variation per script
-                    </li>
+          <div className="pricing-container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+            {planKeys.map((key) => {
+              const plan = PLANS[key]
+              const isTrial = key === "trial"
+              const isPopular = "badge" in plan && plan.badge
+              return (
+                <div
+                  key={key}
+                  className={`pricing-card bg-white rounded-2xl border-2 p-6 relative overflow-hidden flex flex-col ${
+                    isPopular
+                      ? "border-primary shadow-xl shadow-primary/10"
+                      : isTrial
+                        ? "border-gray-200"
+                        : "border-gray-200 hover:border-primary/50"
+                  }`}
+                >
+                  {isTrial && (
+                    <div className="card-ribbon absolute top-0 right-0 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                      FREE TRIAL
+                    </div>
+                  )}
+                  {isPopular && "badge" in plan && plan.badge && (
+                    <div className="card-ribbon absolute top-0 right-0 bg-gradient-to-r from-primary to-accent text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                      {plan.badge}
+                    </div>
+                  )}
+                  <div className="card-header mb-4">
+                    {"icon" in plan && plan.icon && (
+                      <span className="text-3xl block mb-2">{plan.icon}</span>
+                    )}
+                    <h2 className="text-xl font-bold text-dark">{plan.name}</h2>
+                    <div className="price-display flex items-baseline gap-1 mt-2">
+                      <span className="price-main text-3xl font-bold text-dark">
+                        ${plan.price}
+                      </span>
+                      <span className="price-period text-gray-500 text-sm">
+                        {isTrial ? " for 7 days" : "/month"}
+                      </span>
+                    </div>
+                  </div>
+                  <Link
+                    href={isTrial ? "/auth/signup" : `/auth/signup?plan=${key}`}
+                    className="block mt-auto"
+                  >
+                    <Button
+                      fullWidth
+                      size="lg"
+                      className={isPopular ? "" : "bg-gray-800 hover:bg-gray-700"}
+                    >
+                      {isTrial ? "Start Free Trial" : key === "enterprise" ? "Contact Sales" : "Get Started"}
+                    </Button>
+                  </Link>
+                  <ul className="feature-list space-y-2 text-sm text-gray-600 mt-6">
+                    {plan.features.map((feature, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
-              </div>
-            </div>
-
-            {/* PAID CARD (FEATURED) */}
-            <div className="pricing-card paid-card featured bg-white rounded-2xl border-2 border-primary p-8 relative overflow-hidden shadow-xl shadow-primary/10">
-              <div className="card-ribbon absolute top-0 right-0 bg-gradient-to-r from-primary to-accent text-white text-xs font-bold px-4 py-1 rounded-bl-lg">
-                MOST POPULAR
-              </div>
-              <div className="card-header mb-6">
-                <h2 className="text-2xl font-bold text-dark mb-2">Starter Plan</h2>
-                <div className="price-display flex items-baseline gap-0.5 mb-2">
-                  <span className="price-currency text-2xl text-gray-500">$</span>
-                  <span className="price-main text-5xl font-bold text-dark">19</span>
-                  <span className="price-period text-gray-500 text-lg">/month</span>
-                </div>
-                <p className="card-description text-gray-600 text-sm">
-                  Everything you need to write viral scripts for social media
-                </p>
-              </div>
-
-              <Link href="/auth/signup" className="block mb-2">
-                <Button fullWidth size="lg">
-                  Start Writing Scripts
-                </Button>
-              </Link>
-              <p className="card-subtext text-center text-gray-500 text-sm mb-6">
-                Try free for 7 days first
-              </p>
-
-              <div className="card-features space-y-6">
-                <div className="feature-group">
-                  <h3 className="font-semibold text-dark mb-3">What&apos;s included:</h3>
-                  <ul className="feature-list space-y-2 text-sm text-gray-600">
-                    <li className="flex items-center gap-2 emphasized">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <strong>50 viral scripts per month</strong>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      Multi-platform optimization
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      Viral score predictions
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      Real-time trending topics (24/7)
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      Competitor analysis
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      3 script variations per script
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      Viral hook templates
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      Export: TXT, PDF, Notion, Google Docs
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+              )
+            })}
           </div>
         </Section>
 
@@ -164,7 +111,15 @@ export default function PricingPage() {
               {[
                 {
                   q: "How does the 7-day free trial work?",
-                  a: "Sign up with your credit card. You won't be charged during the 7-day trial. Get 10 viral scripts and full access to all platforms. After 7 days, you'll be charged $19 and get full access. Cancel anytime during the trial to avoid charges.",
+                  a: "Sign up to start your free trial. You get 3 video credits, 5 Genie script edits, unlimited AI script generation, and 1 custom avatar upload. Videos are watermarked. Cancel anytime during the trial.",
+                },
+                {
+                  q: "How do video credits work?",
+                  a: "Each video costs 1–5 credits based on length: 0–60 sec = 1 credit, 61–120 sec = 2, 121–180 sec = 3, longer = 5. Shorter videos use fewer credits.",
+                },
+                {
+                  q: "What are Genie Edits?",
+                  a: "Genie is your AI script assistant. Each time you ask Genie to refine or improve a script (e.g. “make the hook stronger”), it uses 1 Genie edit. Trial includes 5; paid plans include more.",
                 },
                 {
                   q: "What makes your scripts viral?",
@@ -239,16 +194,16 @@ export default function PricingPage() {
         <Section background="dark" padding="lg">
           <div className="pricing-final-cta text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Ready to Write Scripts That Go Viral?
+              Ready to Create Viral Videos?
             </h2>
             <p className="cta-description text-gray-300 mb-6 text-lg">
-              Try free for 7 days. 50 scripts/month. Viral score predictions. Just results.
+              Start free with 3 video credits & 5 Genie edits. Upgrade to Creator ($39), Pro ($79), or Enterprise ($199).
             </p>
             <Link href="/auth/signup">
-              <Button size="xl">Start Writing Scripts</Button>
+              <Button size="xl">Start Free Trial</Button>
             </Link>
             <p className="cta-fine-print text-gray-400 text-sm mt-4">
-              Then just $19/month • Cancel anytime • Secure payment
+              Cancel anytime • No hidden fees • Secure payment
             </p>
           </div>
         </Section>

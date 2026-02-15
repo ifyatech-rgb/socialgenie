@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { anthropic, extractTextFromResponse, DEFAULT_MODEL } from '@/lib/anthropic'
+import { generateContent, getDefaultModel, handleClaudeError } from '@/lib/claude'
 import { researchNiche, formatResearchForPrompt, CompetitorResearch } from '@/lib/competitor-research'
 import { getViralScriptSystemPrompt } from '@/lib/viral-script-prompt'
 import { cleanScript } from '@/lib/scriptCleaner'
@@ -199,6 +199,7 @@ export async function POST(request: NextRequest) {
       hookStyle,
       brandVoice,
       ctaPreference,
+      enableResearch = false,
     } = body
 
     // Validate required fields (length is optional - AI determines if not provided)
@@ -233,20 +234,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check credits (3 for research, 1 for standard)
-    const enableResearch = body.enableResearch === true
-    const contentNicheForCheck = enableResearch ? (body.niche || extractNicheFromTopic(topic || '')) : null
-    const willUseResearch = enableResearch && !!contentNicheForCheck
-    const creditsNeeded = willUseResearch ? 3 : 1
-    if (user.credits < creditsNeeded) {
-      return NextResponse.json(
-        {
-          error: `Insufficient credits. Need ${creditsNeeded} (${willUseResearch ? 'research' : 'standard'}), have ${user.credits}. Please upgrade your plan.`,
-          creditsRemaining: user.credits
-        },
-        { status: 402 }
-      )
-    }
+    // Script generation is FREE (draft). Credits charged only when user finalizes.
 
     // 3. Check if Anthropic API key is configured
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -309,17 +297,19 @@ RULES:
     let generatedHook: string
     try {
       console.log('🎣 Generating viral hook using proven frameworks...')
-      const hookResponse = await anthropic.messages.create({
-        model: DEFAULT_MODEL,
-        max_tokens: 300,
-        temperature: 0.7,
+      const hookResult = await generateContent({
         system: `You are a world-class copywriter who has written hooks that pulled millions of views.
 You understand viral content frameworks deeply.
 You generate 50 hook options using proven frameworks (curiosity, controversy, storytelling, lists, bold claims), then select the absolute best one.
 Output ONLY the final selected hook - no explanations, no labels, no framework list.`,
-        messages: [{ role: 'user', content: hookPrompt }],
+        userMessage: hookPrompt,
+        model: getDefaultModel(),
+        max_tokens: 300,
+        temperature: 0.7,
+        userId: user.id,
+        context: 'scriptHook',
       })
-      generatedHook = extractTextFromResponse(hookResponse).trim()
+      generatedHook = hookResult.text.trim()
       generatedHook = generatedHook.replace(/\[.*?\]/g, '')
       generatedHook = generatedHook.replace(/\(.*?\)/g, '')
       generatedHook = generatedHook.replace(/—/g, '-')
@@ -365,13 +355,15 @@ Respond with ONLY a JSON object, no other text:
 }`
 
       try {
-        const analysisResponse = await anthropic.messages.create({
-          model: DEFAULT_MODEL,
+        const analysisResult = await generateContent({
+          userMessage: analysisPrompt,
+          model: getDefaultModel(),
           max_tokens: 200,
           temperature: 0.3,
-          messages: [{ role: 'user', content: analysisPrompt }],
+          userId: user.id,
+          context: 'scriptLengthAnalysis',
         })
-        const analysisText = extractTextFromResponse(analysisResponse)
+        const analysisText = analysisResult.text
         const cleaned = analysisText.replace(/```json/g, '').replace(/```/g, '').trim()
         const parsed = JSON.parse(cleaned) as {
           optimalLength?: string
@@ -453,7 +445,7 @@ Output the script in the REQUIRED STRUCTURE:
 - End with "📢 CTA:" on its own line, then 2-3 sentences (clear call-to-action).
 Use only pure spoken words under each section. No [bracketed] directions, no em dashes (—), no (PAUSE) or parentheticals. Use regular hyphens (-) or commas.`
 
-    // 6. Call Claude API
+    // 6. Call Claude API (sequential: research already done, then hook, then length, now main script)
     console.log('Generating enhanced script with Claude...', { 
       topic, 
       platform, 
@@ -465,20 +457,17 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
       researchUsed,
     })
     
-    const response = await anthropic.messages.create({
-      model: DEFAULT_MODEL,
-      max_tokens: 1024,
-      temperature: 0.9, // Higher for more creative, unique scripts
+    const scriptResult = await generateContent({
       system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
+      userMessage: userPrompt,
+      model: getDefaultModel(),
+      max_tokens: 1024,
+      temperature: 0.9,
+      userId: user.id,
+      context: 'scriptMain',
     })
 
-    let generatedScript = extractTextFromResponse(response)
+    let generatedScript = scriptResult.text
 
     if (!generatedScript) {
       throw new Error('No script generated from Claude')
@@ -495,11 +484,10 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
     }
     console.log('Script generated, cleaned, and formatted; saving to database...')
 
-    // 7. Save script, deduct credit, and log activity in a transaction
-    const creditsToDeduct = researchUsed ? 3 : 1
-    const [script, updatedUser] = await prisma.$transaction([
-      // Create the script
-      prisma.script.create({
+    // 7. Save script as DRAFT (no credit charged - credits charged only on finalize)
+    let script: Awaited<ReturnType<typeof prisma.script.create>>
+    try {
+      script = await prisma.script.create({
         data: {
           userId: user.id,
           topic,
@@ -508,15 +496,32 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
           length: effectiveLength,
           content: generatedScript,
           status: 'generated',
+          lifecycleStatus: 'draft',
+          creditCharged: false,
+          refinementCount: 0,
+          chatHistory: [],
         },
-      }),
-      // Deduct credits (3 for research, 1 for standard)
-      prisma.user.update({
-        where: { id: user.id },
-        data: { credits: { decrement: creditsToDeduct } },
-        select: { credits: true },
-      }),
-    ])
+      })
+    } catch (createErr: unknown) {
+      const msg = String((createErr as { message?: string })?.message ?? '')
+      if (msg.includes('lifecycleStatus') || msg.includes('refinementCount') || msg.includes('chatHistory')) {
+        // DB missing refinement columns - run: npx prisma db push
+        script = await prisma.script.create({
+          data: {
+            userId: user.id,
+            topic,
+            platform,
+            tone,
+            length: effectiveLength,
+            content: generatedScript,
+            status: 'generated',
+          },
+        })
+        console.warn('[ScriptGen] Saved without refinement columns. Run: npx prisma db push')
+      } else {
+        throw createErr
+      }
+    }
 
     // Log activity (non-blocking)
     prisma.activity.create({
@@ -534,14 +539,6 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
         },
     }).catch(err => console.error('Failed to log activity:', err))
 
-    trackCreditsUsage({
-      user_id: user.id,
-      amount: -creditsToDeduct,
-      reason: researchUsed ? 'script_generation_with_research' : 'script_generation',
-      reference_type: 'script',
-      reference_id: script.id,
-      balance_after: updatedUser.credits,
-    })
     trackFeatureUsage({
       user_id: user.id,
       feature_name: 'script_generated',
@@ -563,8 +560,8 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
         status: script.status,
         createdAt: script.createdAt,
       },
-      model: DEFAULT_MODEL,
-      creditsRemaining: updatedUser.credits,
+      model: getDefaultModel(),
+      creditsRemaining: user.credits,
       metadata: {
         optimalLength: useDynamicLength ? optimalLengthLabel : `${script.length}s`,
         targetWordCount: `${wordCount.min}-${wordCount.max}`,
@@ -583,34 +580,13 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
       } : { used: false },
     })
 
-  } catch (error: any) {
-    console.error('Script generation error:', error)
-
-    // Handle specific Anthropic errors
-    if (error?.status === 401) {
-      return NextResponse.json(
-        { error: 'Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY in .env file.' },
-        { status: 401 }
-      )
-    }
-
-    if (error?.status === 429) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again in a moment.' },
-        { status: 429 }
-      )
-    }
-
-    if (error?.status === 402 || error?.message?.includes('credit')) {
-      return NextResponse.json(
-        { error: 'Anthropic API credits exhausted. Please add billing to your Anthropic account.' },
-        { status: 402 }
-      )
-    }
-
-    return NextResponse.json(
-      { error: error.message || 'Failed to generate script' },
-      { status: 500 }
-    )
+  } catch (error: unknown) {
+    const err = error as { message?: string; status?: number; error?: { message?: string } }
+    console.error('[ScriptGen] Script generation failed:', err?.message ?? err)
+    const { message, status } = handleClaudeError(error, 'Script generation')
+    const isDev = process.env.NODE_ENV === 'development'
+    const body: { success: false; error: string; detail?: string } = { success: false, error: message }
+    if (isDev && err?.message) body.detail = err.message
+    return NextResponse.json(body, { status })
   }
 }

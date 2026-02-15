@@ -429,11 +429,11 @@ export default function UserDetailPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">Subscription Plan</label>
-                  <select className="w-full h-11 px-4 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-primary">
-                    <option value="free">Free</option>
-                    <option value="starter">Starter ($29/mo)</option>
-                    <option value="creator" selected={user.plan === 'creator'}>Creator ($99/mo)</option>
-                    <option value="pro">Pro ($199/mo)</option>
+                  <select className="w-full h-11 px-4 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-primary" defaultValue={user.plan ?? "trial"}>
+                    <option value="trial">Trial (Free 7 days)</option>
+                    <option value="creator">Creator ($39/mo)</option>
+                    <option value="professional">Professional ($79/mo)</option>
+                    <option value="enterprise">Enterprise ($199/mo)</option>
                   </select>
                 </div>
                 <div>

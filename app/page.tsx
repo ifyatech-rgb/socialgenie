@@ -1,17 +1,27 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
+import { useRef } from "react"
+import { motion, useScroll, useTransform } from "framer-motion"
 import { 
-  ArrowRight, Check, Star, Upload, Sparkles, Video, Zap, Play, Users, 
-  TrendingUp, Clock, Shield, Globe, Camera, XCircle, HelpCircle, 
+  ArrowRight, Check, Star, Upload, Video, Zap, Play, Users, Sparkles, 
+  Clock, Shield, Globe, Camera, XCircle, HelpCircle, 
   Binoculars, FileText, Mic, Brain, ChevronDown, Flame
 } from "lucide-react"
-import { Navbar } from "@/components/navbar"
+import Navbar from "@/components/navbar"
+import NeuralBackground from "@/components/ui/flow-field-background"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Section } from "@/components/ui/section"
 import { useState, useEffect } from "react"
+import dynamic from "next/dynamic"
+
+const CreativePricing = dynamic(
+  () => import("@/components/ui/creative-pricing").then((m) => ({ default: m.CreativePricing })),
+  { loading: () => <div className="min-h-[400px] flex items-center justify-center text-gray-400">Loading...</div> }
+)
 
 // Activity feed names for CTA
 const activityNames = [
@@ -26,10 +36,19 @@ const activityNames = [
 ]
 
 export default function Home() {
+  const containerRef = useRef<HTMLDivElement>(null)
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [activityIndex, setActivityIndex] = useState(0)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end start"],
+  })
+  const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"])
+  const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0])
+  const scale = useTransform(scrollYProgress, [0, 0.5], [1, 0.95])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -49,149 +68,178 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-light">
+    <>
       <Navbar />
+      <main ref={containerRef} className="relative overflow-x-hidden">
+        {/* ═══════════════════════════════════════════════════════════════
+            SECTION 1 - DRAFTR-STYLE HERO (Framer Motion)
+            NeuralBackground ONLY in hero - NOT in sections below
+        ═══════════════════════════════════════════════════════════════ */}
+        <div className="relative min-h-screen">
+          {/* Animated lines ONLY in hero section */}
+          <div className="absolute inset-0 z-0">
+            <div className="absolute inset-0 bg-gradient-to-b from-purple-50/40 via-white to-purple-50/30" />
+            <NeuralBackground
+              color="#C4B5FD"
+              trailOpacity={0.12}
+              particleCount={200}
+              speed={0.5}
+              className="absolute inset-0 opacity-40"
+            />
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              style={{ opacity }}
+            >
+            <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-purple-200/20 rounded-full blur-[150px] animate-pulse-slow" />
+            <div className="absolute top-0 right-1/4 w-[700px] h-[700px] bg-purple-200/20 rounded-full blur-[150px] animate-pulse-slow animation-delay-1000" />
+            <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-purple-200/20 rounded-full blur-[120px]" />
+            <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-purple-200/20 rounded-full blur-[120px]" />
+            </motion.div>
+          </div>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          SECTION 1 - HERO
-      ═══════════════════════════════════════════════════════════════ */}
-      <section className="relative min-h-screen pt-28 lg:pt-32 overflow-hidden">
-        {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-white to-accent/5" />
-        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full filter blur-3xl animate-pulse" />
-        <div className="absolute top-40 right-10 w-96 h-96 bg-accent/10 rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
-        <div className="absolute bottom-20 left-1/3 w-80 h-80 bg-secondary/10 rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
+          {/* Hero Content with Parallax */}
+          <motion.div
+            className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 pt-32 pb-20"
+            style={{ y, scale }}
+          >
+          {/* Social Proof Trust Badge with Profile Pictures */}
+          <motion.div
+            className="mb-10"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
+            <div className="inline-flex items-center gap-3 px-5 py-3 bg-white/60 backdrop-blur-sm rounded-full border border-purple-200/50 shadow-lg">
+              {/* Overlapping Avatar Stack with Images */}
+              <div className="flex -space-x-3">
+                <Image
+                  src="https://i.pravatar.cc/150?img=1"
+                  alt="Creator"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                  loading="lazy"
+                />
+                <Image
+                  src="https://i.pravatar.cc/150?img=2"
+                  alt="Creator"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                  loading="lazy"
+                />
+                <Image
+                  src="https://i.pravatar.cc/150?img=3"
+                  alt="Creator"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                  loading="lazy"
+                />
+                <Image
+                  src="https://i.pravatar.cc/150?img=4"
+                  alt="Creator"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                  loading="lazy"
+                />
+                <Image
+                  src="https://i.pravatar.cc/150?img=5"
+                  alt="Creator"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                  loading="lazy"
+                />
+              </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center py-12 lg:py-20 w-full">
-            {/* Left - Content */}
-            <div className="text-center lg:text-left">
-              {/* Headline */}
-              <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black text-dark leading-[1.1] tracking-tight mb-6">
-                Your Partner to{" "}
-                <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  Go Viral
+              {/* Text */}
+              <span className="text-sm font-semibold text-gray-700">
+                Join <span className="text-purple-600">10,000+ creators</span> already ahead
+              </span>
+            </div>
+          </motion.div>
+
+          {/* Main Headline - FIXED Animation */}
+          <div className="text-center space-y-8 max-w-5xl mx-auto">
+            <motion.div
+              className="space-y-4"
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
+            >
+              <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-gray-900 leading-tight tracking-tight">
+                Create Viral Videos
+                <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-violet-600 to-purple-700">
+                  in Minutes
                 </span>
               </h1>
+            </motion.div>
 
-              {/* Subheadline */}
-              <h2 className="text-xl lg:text-2xl text-gray-600 font-medium mb-4">
-                Complete AI video generation platform.
-              </h2>
-
-              {/* Description */}
-              <p className="text-lg text-gray-500 mb-8 max-w-xl mx-auto lg:mx-0">
-                Create viral scripts, choose realistic avatars, add natural voices, and generate professional videos for YouTube Shorts, TikTok, and Instagram Reels in minutes.
+            {/* Subtitle - Framer Animation */}
+            <motion.div
+              className="max-w-3xl mx-auto"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
+            >
+              <p className="text-lg sm:text-xl md:text-2xl text-gray-600 font-normal leading-relaxed">
+                We research your topic, generate viral scripts, and create professional videos with{" "}
+                <span className="text-purple-600 font-semibold">100+ UGC creators</span> or{" "}
+                <span className="text-purple-600 font-semibold">your own AI avatar</span>. Go viral on autopilot.
               </p>
+            </motion.div>
 
-              {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
-                <Link href="/auth/signin">
-                  <Button size="xl" icon={<ArrowRight className="h-5 w-5" />} iconPosition="right">
-                    Get Started
-                  </Button>
-                </Link>
-                <Button variant="secondary" size="xl" icon={<Play className="h-5 w-5 text-primary" />}>
-                  Watch Demo
-                </Button>
-              </div>
+            {/* CTA Button - Framer Animation */}
+            <motion.div
+              className="flex justify-center mt-12"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 0.6, ease: "easeOut" }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Link href="/auth/signup" className="group w-full sm:w-auto flex justify-center">
+                <button
+                  type="button"
+                  className="relative w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white rounded-full font-bold text-lg sm:text-xl transition-all duration-300 shadow-2xl shadow-purple-500/40 hover:shadow-purple-500/60 flex items-center justify-center gap-3"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-violet-600 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity duration-300 pointer-events-none" />
+                  <span className="relative flex items-center gap-3">
+                    Get Started • It&apos;s Free
+                    <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-300" />
+                  </span>
+                </button>
+              </Link>
+            </motion.div>
 
-              {/* Trust Badges */}
-              <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-6 justify-center lg:justify-start text-sm text-gray-500">
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <Check className="h-5 w-5 text-success" />
-                  Complete video generation
-                </div>
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <Check className="h-5 w-5 text-success" />
-                  100+ AI avatars • 2-minute videos
-                </div>
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <Check className="h-5 w-5 text-success" />
-                  4.9★ from 3,247 creators
-                </div>
+            {/* Trust Indicators - Updated */}
+            <motion.div
+              className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 mt-12 text-sm text-gray-600"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1, delay: 0.8, ease: "easeOut" }}
+            >
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-purple-600" />
+                <span className="font-medium">Generate in 3 minutes</span>
               </div>
-
-              {/* Social Proof Badge */}
-              <div className="mt-8 pt-8 border-t border-gray-200">
-                <div className="flex items-center gap-4 justify-center lg:justify-start">
-                  <div className="flex -space-x-3">
-                    {["SC", "MR", "JT", "AL", "KP"].map((initials, i) => (
-                      <div 
-                        key={i}
-                        className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs font-bold border-2 border-white"
-                      >
-                        {initials}
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      ))}
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-semibold text-dark">10,000+</span> creators trust SocialGenie
-                    </p>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span className="font-medium">500+ AI avatars</span>
               </div>
-            </div>
-
-            {/* Right - Visual */}
-            <div className="relative hidden lg:block">
-              {/* Main Card */}
-              <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 transform rotate-1">
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 h-80 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-24 h-24 bg-gradient-to-br from-primary to-accent rounded-full mx-auto mb-4 flex items-center justify-center">
-                      <Video className="h-12 w-12 text-white" />
-                    </div>
-                    <p className="text-gray-600 font-medium">Your AI Clone is Ready</p>
-                    <p className="text-gray-400 text-sm">Creating video #247...</p>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2">
+                <Video className="w-4 h-4 text-purple-600" />
+                <span className="font-medium">100+ UGC creators</span>
               </div>
-
-              {/* Floating Cards */}
-              <div className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-xl p-4 border border-gray-100 animate-bounce" style={{ animationDuration: "3s" }}>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
-                    <TrendingUp className="h-5 w-5 text-accent" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-dark">2.4M views</div>
-                    <div className="text-xs text-gray-500">This week</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-xl p-4 border border-gray-100 animate-bounce" style={{ animationDuration: "4s" }}>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-success/10 rounded-full flex items-center justify-center">
-                    <Users className="h-5 w-5 text-success" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-dark">+50K followers</div>
-                    <div className="text-xs text-gray-500">Last 30 days</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute top-1/2 -right-8 bg-gradient-to-r from-primary to-accent text-white rounded-full px-4 py-2 text-sm font-bold shadow-lg">
-                Top 1% in niche
-              </div>
-            </div>
+            </motion.div>
           </div>
+        </motion.div>
         </div>
 
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce hidden lg:block">
-          <ChevronDown className="h-8 w-8 text-gray-400" />
-        </div>
-      </section>
-
+        {/* Sections below hero - NO animated lines, simple backgrounds */}
       {/* ═══════════════════════════════════════════════════════════════
           SECTION 2 - PROBLEM AGITATION
       ═══════════════════════════════════════════════════════════════ */}
@@ -251,151 +299,237 @@ export default function Home() {
       </Section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          SECTION 3 - SOLUTION (HOW IT WORKS)
+          SECTION 3 - HOW IT WORKS (Premium Design)
       ═══════════════════════════════════════════════════════════════ */}
-      <Section id="how-it-works" background="white">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-dark mb-4">
-            How It Works
-          </h2>
-          <p className="text-xl text-gray-600">
-            Create viral videos in four simple steps.
-          </p>
+      <section id="how-it-works" className="relative py-24 px-4 sm:px-6 bg-gradient-to-b from-white via-purple-50/30 to-white overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-purple-200/20 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-10 w-72 h-72 bg-violet-200/20 rounded-full blur-3xl"></div>
         </div>
 
-        <div className="space-y-16 lg:space-y-24">
-          {/* Step 1 */}
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-            <div className="order-2 lg:order-1">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-14 h-14 bg-gradient-to-br from-primary to-primary/80 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-primary/25">
+        <div className="relative max-w-7xl mx-auto">
+          {/* Section Header */}
+          <motion.div
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-gray-900 mb-4">
+              How It Works
+            </h2>
+            <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto">
+              Create viral videos in four simple steps
+            </p>
+          </motion.div>
+
+          {/* Steps Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Step 1 */}
+            <motion.div
+              className="group relative"
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+            >
+              <div className="relative h-full p-8 bg-white rounded-3xl border border-purple-100 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
+                {/* Step number badge */}
+                <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-purple-600 to-violet-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg rotate-3 group-hover:rotate-6 transition-transform duration-300">
                   1
                 </div>
-                <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
-                  AI-Powered Research
-                </span>
-              </div>
-              <h3 className="text-2xl lg:text-3xl font-bold text-dark mb-4">
-                We Analyze Your Niche
-              </h3>
-              <p className="text-lg text-gray-600 mb-6">
-                Enter your topic. We scan thousands of viral videos in your niche, identify patterns, hooks, and structures that actually work.
-              </p>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  Competitor content analysis
-                </li>
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  Viral pattern detection
-                </li>
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  Engagement metrics tracking
-                </li>
-              </ul>
-            </div>
-            <div className="order-1 lg:order-2">
-              <Card variant="gradient" padding="lg" className="text-center">
-                <Binoculars className="h-16 w-16 text-primary mx-auto mb-4" />
-                <p className="text-gray-600">Analyzing 10,000+ viral videos...</p>
-              </Card>
-            </div>
-          </div>
 
-          {/* Step 2 */}
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-            <div className="order-1">
-              <Card variant="gradient" padding="lg" className="text-center">
-                <Upload className="h-16 w-16 text-secondary mx-auto mb-4" />
-                <p className="text-gray-600">Upload your 10-second video...</p>
-              </Card>
-            </div>
-            <div className="order-2">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-14 h-14 bg-gradient-to-br from-secondary to-secondary/80 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-secondary/25">
+                {/* Icon */}
+                <div className="mb-6 w-16 h-16 bg-gradient-to-br from-purple-100 to-violet-100 rounded-2xl flex items-center justify-center">
+                  <Binoculars className="w-8 h-8 text-purple-600" />
+                </div>
+
+                {/* Content */}
+                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                  AI-Powered Research
+                </h3>
+                <p className="text-gray-600 leading-relaxed mb-4">
+                  Enter your topic. We scan thousands of viral videos in your niche to identify patterns, hooks, and structures that actually work.
+                </p>
+
+                {/* Feature list */}
+                <ul className="space-y-2 text-sm text-gray-500">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    Competitor content analysis
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    Viral pattern detection
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    Engagement metrics tracking
+                  </li>
+                </ul>
+              </div>
+            </motion.div>
+
+            {/* Step 2 */}
+            <motion.div
+              className="group relative"
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <div className="relative h-full p-8 bg-white rounded-3xl border border-purple-100 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
+                {/* Step number badge */}
+                <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-purple-600 to-violet-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg rotate-3 group-hover:rotate-6 transition-transform duration-300">
                   2
                 </div>
-                <span className="text-sm font-semibold text-secondary bg-secondary/10 px-3 py-1 rounded-full">
-                  One-Time Setup
-                </span>
-              </div>
-              <h3 className="text-2xl lg:text-3xl font-bold text-dark mb-4">
-                Upload Your Face (Once)
-              </h3>
-              <p className="text-lg text-gray-600 mb-6">
-                Take a 10-second selfie video. Our AI learns your face, voice, expressions. This is the only time you'll ever show your real face.
-              </p>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  Simple drag-and-drop upload
-                </li>
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  AI learns your unique style
-                </li>
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  Clone ready in 2 minutes
-                </li>
-              </ul>
-            </div>
-          </div>
 
-          {/* Step 3 */}
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-            <div className="order-2 lg:order-1">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-14 h-14 bg-gradient-to-br from-accent to-accent/80 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-accent/25">
+                {/* Icon */}
+                <div className="mb-6 w-16 h-16 bg-gradient-to-br from-purple-100 to-violet-100 rounded-2xl flex items-center justify-center">
+                  <Upload className="w-8 h-8 text-purple-600" />
+                </div>
+
+                {/* Content */}
+                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                  Upload Your Face (Once)
+                </h3>
+                <p className="text-gray-600 leading-relaxed mb-4">
+                  Upload at least 1 minute video. Our AI learns your face, voice, expressions. This is the only time you&apos;ll ever show your real face.
+                </p>
+
+                {/* Feature list */}
+                <ul className="space-y-2 text-sm text-gray-500">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    Simple drag-and-drop upload
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    AI learns your unique style
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    Clone ready in minutes
+                  </li>
+                </ul>
+              </div>
+            </motion.div>
+
+            {/* Step 3 */}
+            <motion.div
+              className="group relative"
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+            >
+              <div className="relative h-full p-8 bg-white rounded-3xl border border-purple-100 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
+                {/* Step number badge */}
+                <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-purple-600 to-violet-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg rotate-3 group-hover:rotate-6 transition-transform duration-300">
                   3
                 </div>
-                <span className="text-sm font-semibold text-accent bg-accent/10 px-3 py-1 rounded-full">
-                  Fully Automated
-                </span>
-              </div>
-              <h3 className="text-2xl lg:text-3xl font-bold text-dark mb-4">
-                Your Clone Creates Content
-              </h3>
-              <p className="text-lg text-gray-600 mb-6">
-                We write scripts based on what's proven to work. Your AI clone records the videos. You just download and post.
-              </p>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  Data-backed viral scripts
-                </li>
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  Perfect lip-sync technology
-                </li>
-                <li className="flex items-center gap-3 text-gray-600">
-                  <Check className="h-5 w-5 text-success" />
-                  Download and post anywhere
-                </li>
-              </ul>
-            </div>
-            <div className="order-1 lg:order-2">
-              <Card variant="gradient" padding="lg" className="text-center">
-                <Video className="h-16 w-16 text-accent mx-auto mb-4" />
-                <p className="text-gray-600">Generating video #1,247...</p>
-              </Card>
-            </div>
-          </div>
-        </div>
 
-        <div className="text-center mt-16">
-          <Link href="/auth/signin">
-            <Button size="xl" icon={<ArrowRight className="h-5 w-5" />} iconPosition="right">
-              Start Creating Videos
-            </Button>
-          </Link>
-          <p className="mt-4 text-gray-500">
-            Complete video generation platform
-          </p>
+                {/* Icon */}
+                <div className="mb-6 w-16 h-16 bg-gradient-to-br from-purple-100 to-violet-100 rounded-2xl flex items-center justify-center">
+                  <Video className="w-8 h-8 text-purple-600" />
+                </div>
+
+                {/* Content */}
+                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                  Your Clone Creates Content
+                </h3>
+                <p className="text-gray-600 leading-relaxed mb-4">
+                  We write scripts based on what&apos;s proven to work. Your AI clone records the videos. You just download and post.
+                </p>
+
+                {/* Feature list */}
+                <ul className="space-y-2 text-sm text-gray-500">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    Data-backed viral scripts
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    Perfect lip-sync technology
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                    Download and post anywhere
+                  </li>
+                </ul>
+              </div>
+            </motion.div>
+
+            {/* Step 4 */}
+            <motion.div
+              className="group relative"
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              <div className="relative h-full p-8 bg-gradient-to-br from-purple-600 to-violet-600 rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 text-white">
+                {/* Step number badge */}
+                <div className="absolute -top-4 -left-4 w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-purple-600 font-bold text-xl shadow-lg rotate-3 group-hover:rotate-6 transition-transform duration-300">
+                  4
+                </div>
+
+                {/* Icon */}
+                <div className="mb-6 w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+
+                {/* Content */}
+                <h3 className="text-xl font-bold mb-3">
+                  Go Viral on Autopilot
+                </h3>
+                <p className="leading-relaxed mb-4 text-purple-50">
+                  Post consistently. Your clone handles the content. You focus on strategy and growth. Watch your audience explode.
+                </p>
+
+                {/* Feature list */}
+                <ul className="space-y-2 text-sm text-purple-100">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+                    Consistent posting schedule
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+                    Multi-platform distribution
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+                    Rapid audience growth
+                  </li>
+                </ul>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* CTA at bottom */}
+          <motion.div
+            className="text-center mt-16"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+          >
+            <Link href="/auth/signup">
+              <button className="px-10 py-5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white rounded-full font-bold text-lg shadow-2xl shadow-purple-500/40 hover:shadow-purple-500/60 transition-all duration-300 hover:scale-105 flex items-center gap-3 mx-auto">
+                Start Creating Videos
+                <ArrowRight className="w-6 h-6" />
+              </button>
+            </Link>
+            <p className="mt-4 text-sm text-gray-500">
+              Complete video generation platform
+            </p>
+          </motion.div>
         </div>
-      </Section>
+      </section>
 
       {/* ═══════════════════════════════════════════════════════════════
           SECTION 4 - WHY WE'RE DIFFERENT
@@ -468,7 +602,7 @@ export default function Home() {
             <h3 className="text-xl font-bold text-dark mb-4">SocialGenie</h3>
             <div className="space-y-3 text-sm text-gray-600 mb-6">
               <p><strong className="text-dark">Time:</strong> 3 minutes</p>
-              <p><strong className="text-dark">Cost:</strong> $99/month</p>
+              <p><strong className="text-dark">Cost:</strong> From $39/month</p>
               <p><strong className="text-dark">Quality:</strong> Indistinguishable</p>
             </div>
             <div className="space-y-2 text-left text-sm">
@@ -608,86 +742,14 @@ export default function Home() {
       </Section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          SECTION 7 - PRICING
+          SECTION 7 - CREATIVE PRICING (replaces old pricing cards)
       ═══════════════════════════════════════════════════════════════ */}
-      <Section id="pricing" background="white">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-dark mb-4">
-            Choose Your Plan
-          </h2>
-          <p className="text-xl text-gray-600">
-            All plans include competitor analysis and viral script generation
-          </p>
-        </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
-          {/* Free Trial */}
-          <Card hover padding="lg" className="relative">
-            <div className="text-sm font-semibold text-gray-500 mb-2">Test Drive</div>
-            <div className="text-5xl font-bold text-dark mb-2">$0</div>
-            <p className="text-gray-600 mb-6">Perfect for testing</p>
-            <ul className="space-y-3 mb-8">
-              {["5 AI scripts", "2 AI videos", "Competitor analysis", "All platforms", "7-day access"].map((feature, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
-                  <Check className="h-4 w-4 text-success" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <Button variant="outline" fullWidth>
-              Join Waitlist
-            </Button>
-            <p className="text-xs text-gray-500 text-center mt-3">Complete video platform</p>
-          </Card>
-
-          {/* Creator */}
-          <Card hover glow padding="lg" className="relative border-2 border-primary">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary to-accent text-white text-xs font-bold px-3 py-1 rounded-full">
-              ⭐ MOST POPULAR
-            </div>
-            <div className="absolute top-4 right-4 bg-accent/10 text-accent text-xs font-bold px-2 py-1 rounded">
-              COMING SOON
-            </div>
-            <div className="text-sm font-semibold text-primary mb-2">Creator</div>
-            <div className="text-5xl font-bold text-dark mb-2">$99<span className="text-lg text-gray-500">/mo</span></div>
-            <p className="text-gray-600 mb-6">For serious creators</p>
-            <ul className="space-y-3 mb-8">
-              {["200 AI scripts/month", "50 AI videos/month", "Competitor spy mode", "Voice cloning (140+ languages)", "Multi-platform export", "Priority support"].map((feature, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
-                  <Check className="h-4 w-4 text-success" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <Button fullWidth>
-              Join Waitlist
-            </Button>
-            <p className="text-xs text-gray-500 text-center mt-3">Join 7,000+ creators</p>
-          </Card>
-
-          {/* Pro */}
-          <Card hover padding="lg" className="relative">
-            <div className="text-sm font-semibold text-gray-500 mb-2">Maximum Power</div>
-            <div className="text-5xl font-bold text-dark mb-2">$199<span className="text-lg text-gray-500">/mo</span></div>
-            <p className="text-gray-600 mb-6">For agencies & teams</p>
-            <ul className="space-y-3 mb-8">
-              {["Unlimited scripts", "200 videos/month", "Premium avatars", "API access", "White-label option", "Dedicated manager"].map((feature, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
-                  <Check className="h-4 w-4 text-success" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <Button variant="outline" fullWidth>
-              Join Waitlist
-            </Button>
-            <p className="text-xs text-gray-500 text-center mt-3">Enterprise-grade</p>
-          </Card>
-        </div>
+      <section id="pricing" className="overflow-x-hidden" style={{ background: "radial-gradient(circle at bottom, #764ba215 0%, transparent 70%)", backgroundColor: "#0a0a0a" }}>
+        <CreativePricing />
 
         {/* FAQ */}
-        <div className="max-w-2xl mx-auto mt-16">
-          <h3 className="text-2xl font-bold text-dark text-center mb-8">Frequently Asked Questions</h3>
+        <div className="max-w-2xl mx-auto mt-16 px-4 py-20">
+          <h3 className="text-2xl font-bold text-white text-center mb-8">Frequently Asked Questions</h3>
           <div className="space-y-4">
             {[
               { q: "When will SocialGenie launch?", a: "We're launching very soon! Join the waitlist for early access and exclusive pricing." },
@@ -695,16 +757,16 @@ export default function Home() {
               { q: "Do I own the videos?", a: "100% yes. All videos you create are completely yours to use however you want." },
               { q: "What's the refund policy?", a: "We offer a 30-day money-back guarantee, no questions asked." },
             ].map((faq, idx) => (
-              <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden">
+              <div key={idx} className="border border-gray-600 rounded-xl overflow-hidden bg-[#1a1a1a]">
                 <button
                   onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                  className="w-full flex items-center justify-between p-4 text-left font-medium text-dark hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center justify-between p-4 text-left font-medium text-white hover:bg-white/5 transition-colors"
                 >
                   {faq.q}
-                  <ChevronDown className={`h-5 w-5 text-gray-500 transition-transform ${openFaq === idx ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${openFaq === idx ? 'rotate-180' : ''}`} />
                 </button>
                 {openFaq === idx && (
-                  <div className="px-4 pb-4 text-gray-600">
+                  <div className="px-4 pb-4 text-gray-400">
                     {faq.a}
                   </div>
                 )}
@@ -712,7 +774,7 @@ export default function Home() {
             ))}
           </div>
         </div>
-      </Section>
+      </section>
 
       {/* ═══════════════════════════════════════════════════════════════
           SECTION 8 - FINAL CTA
@@ -733,16 +795,16 @@ export default function Home() {
           </p>
 
           {/* Email Form */}
-          <form onSubmit={handleWaitlist} className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto mb-8">
+          <form onSubmit={handleWaitlist} className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto mb-8 w-full">
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
-              className="flex-1 h-14 px-6 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-gray-400 focus:outline-none focus:border-primary transition-colors"
+              className="flex-1 w-full min-h-12 h-14 px-6 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-gray-400 focus:outline-none focus:border-primary transition-colors"
               required
             />
-            <Button type="submit" size="xl" loading={loading} icon={<ArrowRight className="h-5 w-5" />} iconPosition="right">
+            <Button type="submit" size="xl" loading={loading} icon={<ArrowRight className="h-5 w-5" />} iconPosition="right" className="w-full sm:w-auto min-h-12">
               Join Waitlist
             </Button>
           </form>
@@ -788,6 +850,27 @@ export default function Home() {
       </Section>
 
       <Footer />
-    </div>
+      </main>
+
+      {/* Smooth scroll and animation styles */}
+      <style jsx global>{`
+        html {
+          scroll-behavior: smooth;
+        }
+        * {
+          scroll-behavior: smooth;
+        }
+        @keyframes pulse-slow {
+          0%, 100% { opacity: 0.35; }
+          50% { opacity: 0.55; }
+        }
+        .animate-pulse-slow {
+          animation: pulse-slow 8s ease-in-out infinite;
+        }
+        .animation-delay-1000 {
+          animation-delay: 1s;
+        }
+      `}</style>
+    </>
   )
 }

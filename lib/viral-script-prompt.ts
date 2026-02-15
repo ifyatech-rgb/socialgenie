@@ -127,10 +127,10 @@ Create video scripts that are:
 - **Natural pauses/emphasis:** Use periods or commas for pauses. Example: "The agencies at $20K per month? They've figured this out." Use a regular hyphen or comma instead of em dash: "I'm gonna be honest with you - most agencies get this wrong."
 
 ### USE THESE (Conversational):
-"Here's the deal...", "Look...", "Real talk...", "Here's what I mean...", "Let me explain...", "Check this out...", "You know what's crazy?", "I'm gonna be honest...", "Listen..."
+"So check this out...", "Look...", "Real talk...", "What I did different is...", "Turns out...", "Check this out...", "You know what's crazy?", "I'm gonna be honest...", "Listen...", "And get this...", "And boom..."
 
-### DON'T USE THESE (Written):
-"Furthermore...", "Moreover...", "In conclusion...", "It is important to note...", "One must consider...", "The aforementioned...", "Subsequently...", "Accordingly..."
+### DON'T USE THESE (Written - including formal transitions):
+"Furthermore...", "Moreover...", "In conclusion...", "It is important to note...", "One must consider...", "The aforementioned...", "Subsequently...", "Accordingly...", "Here's what happened...", "But here's what I did differently...", "Let me explain...", "Here's the thing...", "The result?"
 
 ### BUZZWORDS BANNED IN SCRIPTS:
 "Leverage", "utilize", "facilitate", "synergy", "key differentiator", "articulate value", "tactical deliverables", "optimize", "implement", "execute", "thought leadership", "bandwidth", "circle back", "move the needle", "low-hanging fruit", "drill down", "touch base"
@@ -157,51 +157,61 @@ Create video scripts that are:
 
 **If it sounds like something you'd read in a book → rewrite it. If it sounds like something you'd say to a friend → keep it. VIDEO SCRIPTS = CONVERSATIONS, NOT ESSAYS.**
 
+### NATURAL FLOW - WRITE LIKE TALKING TO A FRIEND:
+
+- Use contractions (I'm, won't, didn't, can't) - ALWAYS
+- Keep sentences SHORT and punchy
+- Vary sentence length for rhythm
+- Sound like a real person, not a copywriter
+- Add personality - use "I" and "you"
+- Always use concrete numbers, no vague claims
+
+### BAD vs GOOD TRANSITION EXAMPLE:
+
+❌ BAD (Formal, Robotic): "Here's what happened. I was stuck at 73 kilos for 8 months. Then I discovered something called mechanical tension cycling. But here's what I did differently. Week one..."
+
+✅ GOOD (Natural, Conversational): "I was stuck at 73 kilos for 8 months. Tried everything. Nothing worked. Then I found this thing called mechanical tension cycling. What I did different is simple. Week one..."
+
 ---
 
 ## 🌊 MANDATORY FLOW & TRANSITIONS
 
 **Every script must flow like ONE continuous conversation, not 3 disconnected sections.**
 
-### TRANSITION PHRASES TO USE:
+### 🚫 NO FORMAL TRANSITIONS (CRITICAL - NEVER USE):
+
+❌ "Here's what happened" | ❌ "But here's what I did differently" | ❌ "Let me explain" | ❌ "Here's the thing"
+❌ "The result?" | ❌ "Here's how it works" | ❌ "So here's what I'm doing" | ❌ "Here's where it gets interesting"
+
+### ✅ NATURAL TRANSITION PHRASES TO USE:
 
 **From Hook to Body:**
-- "Here's what happened..."
-- "Let me explain..."
-- "Here's what I mean..."
-- "This almost killed me..."
-- "And it gets worse..."
+- "So check this out..." | "Listen..." | "What I did different is..." | "What changed everything was..."
+- "Real talk..." | "Turns out..." | "So I tried this..." | "And get this..."
 
 **Within Body (connecting points):**
-- "Then I realized something..."
-- "That's when it hit me..."
-- "Here's where it gets interesting..."
-- "But here's the problem..."
-- "And here's what changed..."
+- "Then I realized something..." | "That's when it hit me..."
+- "What I did different is..." | "What changed everything was..."
+- "And boom..." | "And get this..." | "Look..."
 
 **From Body to CTA:**
-- "Now here's the thing..."
-- "So here's what I'm doing..."
-- "Look, I know what you're thinking..."
-- "And that's why I'm offering..."
-- "This is where it gets good..."
+- "Now look..." | "Real talk..." | "So here's what you do..."
+- "And that's why..." | "This is the part where..."
 
-### SMOOTH FLOW EXAMPLE:
+### SMOOTH FLOW EXAMPLE (Natural - NO formal transitions):
 
 \`\`\`
 I spent $47K on my Facebook ads agency writing proposals at 2 AM for HVAC companies.
 
-Here's what almost killed me.
+What almost killed me? Saying yes to everyone. HVAC companies one week. Restaurants the next. Tech startups after that. Every client wanted something different. I couldn't scale. Couldn't hire. Couldn't breathe.
 
-I was saying yes to everyone. HVAC companies one week. Restaurants the next. Tech startups after that. Every client wanted something different. I couldn't scale. Couldn't hire. Couldn't breathe.
-
-Then I made one decision that changed everything.
+Then I made one decision. Game changer.
 
 I picked ONE niche. E-commerce brands doing $50-200K per month. That's it. Built one system. One process. One result I could guarantee.
 
 Revenue went from $4,200 a month to $9,100 in 90 days.
 
-Now here's the thing - most agencies won't do this. They're scared to niche down. But if you want the exact framework I used...
+Real talk - most agencies won't do this. They're scared to niche down. But if you want the exact framework I used...
 
 Comment 'NICHE' and I'll send you the decision tree that helped me pick my $20K/month niche in under 48 hours.
 \`\`\`
@@ -1212,7 +1222,7 @@ The script should be:
 \`\`\`
 [Start with ultra-specific hook - business type + audience OR $ amount + timeframe. Must pass Competitor Test.]
 
-[Smooth transition phrase: "Here's what happened..." or "Let me explain..." or "This almost killed me..."]
+[Smooth transition phrase: "So check this out..." or "What I did different is..." or "Turns out..." or "Real talk..."]
 
 [Well-explained point 1 with specific example and numbers. Conversational language, contractions.]
 
@@ -1220,11 +1230,11 @@ The script should be:
 
 [Well-explained point 2 with specific example. No jargon.]
 
-[Natural pivot: "And here's what changed..." or "Here's where it gets interesting..."]
+[Natural pivot: "What changed everything was..." or "And boom..." or "And get this..."]
 
 [Well-explained point 3 with result/outcome. Odd numbers, realistic for industry.]
 
-[CTA setup: "Now here's the thing..." or "Look, I know what you're thinking..."]
+[CTA setup: "Now look..." or "Real talk..." or "So here's what you do..."]
 
 [CTA in Format A, B, or C - specific resource + benefit + urgency + easy action. No banned phrases.]
 \`\`\`

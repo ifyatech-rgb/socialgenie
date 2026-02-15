@@ -533,8 +533,8 @@ class HeyGenClient {
   }
 
   /**
-   * Upload video file to HeyGen. Tries v2/video.upload_url first; on 404 falls back to v1/asset.upload_url.
-   * Returns video_id (or asset_id) for use in createVideoAvatar.
+   * Upload video file to HeyGen. Uses direct POST to upload.heygen.com/v1/asset (official Upload Asset API).
+   * Returns asset id as videoId for use in createVideoAvatar.
    */
   async uploadVideoFile(
     videoBuffer: Buffer,
@@ -546,72 +546,47 @@ class HeyGenClient {
     }
     try {
       const fileSize = videoBuffer.length;
-      console.log("[HeyGen] Step 1: Requesting upload URL...", filename, (fileSize / 1024 / 1024).toFixed(2), "MB");
+      console.log("[HeyGen] Uploading video via upload.heygen.com/v1/asset...", filename, (fileSize / 1024 / 1024).toFixed(2), "MB");
 
-      let uploadUrl: string | undefined;
-      let videoId: string | undefined;
-
-      const v2Url = `${this.baseUrl}/video.upload_url`;
-      const v2Response = await fetch(v2Url, {
+      const uploadUrl = `${HEYGEN_UPLOAD_URL}/asset`;
+      const response = await fetch(uploadUrl, {
         method: "POST",
         headers: {
           "X-Api-Key": this.apiKey,
-          "Content-Type": "application/json",
+          "Content-Type": mimeType,
         },
-        body: JSON.stringify({ file_name: filename, file_size: fileSize }),
-      });
-
-      if (v2Response.ok) {
-        const v2Data = (await v2Response.json()) as { data?: { upload_url?: string; video_id?: string } };
-        uploadUrl = v2Data?.data?.upload_url;
-        videoId = v2Data?.data?.video_id;
-      } else if (v2Response.status === 404) {
-        console.log("[HeyGen] v2/video.upload_url returned 404, trying v1/asset.upload_url");
-        const v1Response = await fetch("https://api.heygen.com/v1/asset.upload_url", {
-          method: "POST",
-          headers: {
-            "X-Api-Key": this.apiKey,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ type: "video" }),
-        });
-        if (!v1Response.ok) {
-          const errorText = await v1Response.text();
-          throw new Error(`HeyGen upload URL error: ${v1Response.status} ${errorText}`);
-        }
-        const v1Data = (await v1Response.json()) as {
-          data?: { upload_url?: string; asset_id?: string; video_id?: string };
-        };
-        uploadUrl = v1Data?.data?.upload_url;
-        videoId = v1Data?.data?.asset_id ?? v1Data?.data?.video_id;
-      } else {
-        const errorText = await v2Response.text();
-        throw new Error(`HeyGen upload URL error: ${v2Response.status} ${errorText}`);
-      }
-
-      if (!uploadUrl || !videoId) {
-        throw new Error("HeyGen did not return upload_url or video_id");
-      }
-
-      console.log("[HeyGen] Step 2: Uploading video to signed URL...");
-      const uploadResponse = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": mimeType },
         body: new Uint8Array(videoBuffer),
       });
 
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`File upload failed: ${uploadResponse.status} ${errorText}`);
+      const responseText = await response.text();
+      const data = responseText ? (JSON.parse(responseText) as { code?: number; data?: { id?: string; url?: string; file_type?: string }; message?: string }) : {};
+
+      if (!response.ok) {
+        const msg = data.message ?? data.data ?? responseText?.substring(0, 300) ?? `Upload failed: ${response.status}`;
+        throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
       }
 
-      console.log("[HeyGen] Video uploaded successfully, video_id:", videoId);
-      return { success: true, videoId, videoUrl: uploadUrl.split("?")[0] };
+      if (data.code !== 100 && data.code !== 0) {
+        throw new Error(data.message ?? "HeyGen upload returned an error");
+      }
+
+      const assetId = data.data?.id;
+      if (!assetId) {
+        throw new Error(data.message ?? "HeyGen did not return an asset id");
+      }
+
+      console.log("[HeyGen] Video uploaded successfully, asset_id:", assetId);
+      return {
+        success: true,
+        videoId: assetId,
+        videoUrl: data.data?.url,
+      };
     } catch (error) {
-      console.error("[HeyGen] Video upload failed:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("[HeyGen] Video upload failed:", msg);
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: msg,
       };
     }
   }

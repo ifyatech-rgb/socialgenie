@@ -1,6 +1,4 @@
 "use client";
-
-import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { User } from "lucide-react";
 import { CircularProgress } from "./CircularProgress";
@@ -22,14 +20,10 @@ export function VideoCard({ id, thumbnailUrl, status, progress, timestamp, video
   const router = useRouter();
 
   return (
-    <motion.div
+    <div
       onClick={() => router.push(`/dashboard/projects/${id}`)}
       className="cursor-pointer overflow-hidden rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-xl hover:shadow-black/30"
       style={{ backgroundColor: "#1a1a1a" }}
-      whileHover={{ y: -2 }}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
     >
       <div className="relative aspect-video w-full overflow-hidden">
         {thumbnailUrl && status === "completed" ? (
@@ -72,6 +66,6 @@ export function VideoCard({ id, thumbnailUrl, status, progress, timestamp, video
           {timestamp} • {videoType}
         </p>
       </div>
-    </motion.div>
+    </div>
   );
 }

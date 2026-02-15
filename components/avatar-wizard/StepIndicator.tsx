@@ -1,13 +1,14 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
+const BRAND_GRADIENT = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+
 const STEPS = [
-  { id: 1, label: "Instructions" },
-  { id: 2, label: "Submit footage" },
+  { id: 1, label: "Choose Type" },
+  { id: 2, label: "Upload" },
   { id: 3, label: "Consent" },
-  { id: 4, label: "Verify" },
+  { id: 4, label: "Submit" },
 ] as const;
 
 export type WizardStepId = 1 | 2 | 3 | 4;
@@ -33,25 +34,28 @@ export function StepIndicator({ currentStep, className }: StepIndicatorProps) {
             <div className="flex flex-col items-center">
               <span
                 className={cn(
-                  "text-sm font-medium transition-colors",
-                  isActive || isCompleted ? "text-[#000000]" : "text-[#9CA3AF]"
+                  "text-xs font-medium transition-colors sm:text-sm",
+                  isActive || isCompleted ? "text-gray-900" : "text-gray-400"
                 )}
               >
                 {step.label}
               </span>
               <div
                 className={cn(
-                  "mt-1 h-1 w-16 rounded-full transition-all duration-300 sm:w-24",
-                  isActive || isCompleted ? "bg-[#000000]" : "bg-[#E5E7EB]"
+                  "mt-1 h-1 w-12 rounded-full transition-all duration-300 sm:w-24",
+                  isActive && "scale-105",
+                  isActive || isCompleted ? "" : "bg-gray-200"
                 )}
+                style={
+                  isActive || isCompleted
+                    ? { background: isCompleted ? "#10B981" : BRAND_GRADIENT }
+                    : undefined
+                }
               />
             </div>
             {!isLast && (
               <div
-                className={cn(
-                  "mx-0.5 h-0.5 w-4 sm:w-8",
-                  isCompleted ? "bg-[#000000]" : "bg-[#E5E7EB]"
-                )}
+                className={cn("mx-0.5 h-0.5 w-2 sm:w-6", isCompleted ? "bg-emerald-500" : "bg-gray-200")}
                 style={{ minWidth: 8 }}
                 aria-hidden
               />

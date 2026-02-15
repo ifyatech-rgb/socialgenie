@@ -4,6 +4,8 @@ import "./globals.css";
 import "@/styles/design-system.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "sonner";
+import { RouteChangeProgress } from "@/components/route-change-progress";
+import { PreconnectLinks } from "@/components/preconnect-links";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,9 +22,9 @@ export const metadata: Metadata = {
   keywords: "AI video generator, content creation, social media automation, video cloning, voice cloning, viral content, competitor analysis",
   authors: [{ name: "SocialGenie" }],
   icons: {
-    icon: "/logos/logo.png",
-    shortcut: "/logos/logo.png",
-    apple: "/logos/logo.png",
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
   openGraph: {
     title: "SocialGenie - Your Partner to Go Viral",
@@ -43,9 +45,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" className="overflow-x-hidden">
+      <body className={`${inter.className} overflow-x-hidden min-w-0`}>
         <Providers>
+          <PreconnectLinks />
+          <RouteChangeProgress />
           {children}
           <Toaster position="top-right" richColors closeButton />
         </Providers>

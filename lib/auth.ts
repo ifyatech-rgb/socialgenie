@@ -7,6 +7,7 @@ import { hash, compare } from "bcryptjs";
 import { trackUserActivity } from "@/lib/tracking";
 import { syncUserToSupabase } from "@/lib/supabase-sync";
 
+// trustHost: use AUTH_TRUST_HOST=true in Vercel env for CLIENT_FETCH_ERROR fix
 const authOptions: NextAuthOptions = {
   providers: [
     // Credentials provider (email/password)

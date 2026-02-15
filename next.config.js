@@ -1,5 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Prisma must be external for Turbopack - prevents "Invalid _TURBOPACK_imported_module" on sign-in
+  serverExternalPackages: ['prisma', '@prisma/client'],
+
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'i.pravatar.cc', pathname: '/**' },
+      { protocol: 'https', hostname: 'api.heygen.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
+    ],
+    formats: ['image/avif', 'image/webp'],
+  },
+
   // Hide the floating "N" dev indicator in the bottom-left (dev only; never shows in production)
   devIndicators: false,
 

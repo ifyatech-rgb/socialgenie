@@ -3,7 +3,6 @@
 import { Fragment, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 interface ModalProps {
   isOpen: boolean;
@@ -56,25 +55,18 @@ const Modal = ({
   };
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
         <Fragment>
           {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
             onClick={closeOnOverlayClick ? onClose : undefined}
           />
 
           {/* Modal */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
+            <div
               className={cn(
                 "relative w-full bg-white rounded-2xl shadow-2xl",
                 sizes[size],
@@ -108,11 +100,11 @@ const Modal = ({
 
               {/* Content */}
               <div className="p-6">{children}</div>
-            </motion.div>
+            </div>
           </div>
         </Fragment>
       )}
-    </AnimatePresence>
+    </>
   );
 };
 

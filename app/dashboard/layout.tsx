@@ -2,9 +2,8 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Home,
   FileText,
@@ -19,6 +18,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo, LogoIcon } from "@/components/logo";
+import { DashboardStatsProvider } from "./dashboard-stats-context";
+import { CreditsProvider } from "./credits-context";
 
 // Simplified navigation - only 5 items
 const navItems = [
@@ -47,26 +48,66 @@ export default function DashboardLayout({
     }
   }, [status, router]);
 
-  // Fetch user credits and payment status; redirect unpaid users to checkout
-  useEffect(() => {
-    const fetchUser = async () => {
-      if (status !== "authenticated") return;
-      try {
-        const res = await fetch("/api/user");
-        if (res.ok) {
-          const data = await res.json();
-          setCredits(data.user?.credits ?? 0);
-          const paymentStatus = data.user?.payment_status;
-          if (paymentStatus === "pending") {
-            router.replace("/checkout-required");
-          }
+  // Single fetch for user credits; dedupe and debounce to avoid 5–6 duplicate /api/user calls
+  const lastFetchRef = useRef<number>(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const DEDUPE_MS = 3000;
+  const DEBOUNCE_MS = 1500;
+
+  const fetchUser = useCallback(async () => {
+    if (status !== "authenticated") return;
+    const now = Date.now();
+    if (now - lastFetchRef.current < DEDUPE_MS) return;
+    lastFetchRef.current = now;
+    try {
+      const res = await fetch("/api/user", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCredits(data.user?.videoCredits ?? data.user?.credits ?? 0);
+        const paymentStatus = data.user?.payment_status;
+        if (paymentStatus === "pending") {
+          router.replace("/checkout-required");
         }
-      } catch (error) {
-        console.error("Failed to fetch user:", error);
       }
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("User fetch failed (will retry):", error);
+      }
+    }
+  }, [status, router]);
+
+  // Single run on mount when authenticated (no pathname – avoids refetch on every route change)
+  useEffect(() => {
+    if (status === "authenticated") fetchUser();
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps -- run once when auth is ready
+
+  const debouncedFetchUser = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      fetchUser();
+    }, DEBOUNCE_MS);
+  }, [fetchUser]);
+
+  useEffect(() => {
+    window.addEventListener("focus", debouncedFetchUser);
+    window.addEventListener("dashboard-refresh", debouncedFetchUser);
+    window.addEventListener("credits-updated", debouncedFetchUser);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "dashboard-refresh") debouncedFetchUser();
     };
-    fetchUser();
-  }, [status, pathname, router]);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("focus", debouncedFetchUser);
+      window.removeEventListener("dashboard-refresh", debouncedFetchUser);
+      window.removeEventListener("credits-updated", debouncedFetchUser);
+      window.removeEventListener("storage", onStorage);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [debouncedFetchUser]);
 
   // Close sidebar on route change
   useEffect(() => {
@@ -111,26 +152,22 @@ export default function DashboardLayout({
           .slice(0, 2) || "U";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f8f9fa] to-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#f8f9fa] to-white overflow-x-hidden">
       {/* Mobile Overlay */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-      </AnimatePresence>
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
-      {/* Sidebar - Framer style: glass, rounded, gradient accents */}
+      {/* Sidebar - slide-in drawer on mobile, fixed on desktop */}
       <aside
         className={cn(
           "fixed left-0 top-0 h-full w-64 z-50",
-          "transform transition-transform duration-300 ease-in-out",
-          "lg:translate-x-0",
+          "transform transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
+          "lg:translate-x-0 lg:transition-none lg:will-change-auto",
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           "sg-glass border-r border-[var(--sg-border)] shadow-[var(--sg-shadow-lg)]"
         )}
@@ -212,14 +249,8 @@ export default function DashboardLayout({
                 )} />
               </button>
 
-              <AnimatePresence>
-                {userMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute bottom-full left-0 right-0 mb-2 py-2 sg-glass rounded-[var(--sg-radius-xl)] border border-[var(--sg-border)] shadow-[var(--sg-shadow-xl)]"
-                  >
+              {userMenuOpen && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 py-2 sg-glass rounded-[var(--sg-radius-xl)] border border-[var(--sg-border)] shadow-[var(--sg-shadow-xl)]">
                     <Link
                       href="/dashboard/settings"
                       className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--sg-bg-secondary)] text-[var(--sg-text-primary)] text-sm font-medium rounded-lg mx-2 transition-colors"
@@ -235,39 +266,38 @@ export default function DashboardLayout({
                       <LogOut className="h-4 w-4" />
                       <span>Log Out</span>
                     </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
+              )}
             </div>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="lg:ml-64">
+      <div className="min-w-0 lg:ml-64">
         {/* Mobile Header - glass */}
         <header className="sticky top-0 z-30 lg:hidden sg-glass border-b border-[var(--sg-border)]">
-          <div className="flex items-center justify-between px-4 h-16">
+          <div className="flex items-center justify-between px-4 h-16 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-[var(--sg-radius-md)] hover:bg-[var(--sg-bg-secondary)] transition-colors"
+              className="p-2 min-h-12 min-w-12 flex items-center justify-center rounded-[var(--sg-radius-md)] hover:bg-[var(--sg-bg-secondary)] transition-colors shrink-0"
             >
               <Menu className="h-6 w-6 text-[var(--sg-text-secondary)]" />
             </button>
-            <Logo size={28} showText={true} />
-            <div className="w-10" />
+            <div className="flex-1 min-w-0 flex justify-center overflow-hidden">
+              <Logo size={28} showText={true} className="min-w-0" />
+            </div>
+            <div className="w-10 shrink-0" />
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="min-h-screen p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-            {children}
-          </motion.div>
+        <main className="min-h-screen p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto w-full min-w-0">
+          <CreditsProvider credits={credits}>
+            <DashboardStatsProvider>
+              {children}
+            </DashboardStatsProvider>
+          </CreditsProvider>
         </main>
       </div>
     </div>

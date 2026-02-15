@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   User,
   CreditCard,
@@ -118,24 +117,17 @@ export default function SettingsPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
+      <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
           Settings
         </h1>
         <p className="text-gray-500">
           Manage your account and preferences
         </p>
-      </motion.div>
+      </div>
 
       {/* Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
+      <div>
         <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -156,14 +148,10 @@ export default function SettingsPage() {
             );
           })}
         </div>
-      </motion.div>
+      </div>
 
       {/* Tab Content */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
+      <div>
         {/* Profile Tab */}
         {activeTab === "profile" && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-6">
@@ -355,7 +343,7 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

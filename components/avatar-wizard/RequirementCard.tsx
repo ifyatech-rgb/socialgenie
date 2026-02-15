@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,15 +27,10 @@ export function RequirementCard({
   };
 
   return (
-    <motion.div
-      layout
-      initial={false}
-      animate={{
-        backgroundColor: confirmed ? "#E8F8F0" : "#FFFFFF",
-        borderColor: confirmed ? "#10B981" : "#E5E7EB",
-      }}
+    <div
       className={cn(
-        "flex items-center gap-4 rounded-lg border-2 p-5",
+        "flex items-center gap-4 rounded-lg border-2 p-5 transition-colors",
+        confirmed ? "bg-[#E8F8F0] border-[#10B981]" : "bg-white border-[#E5E7EB]",
         className
       )}
     >
@@ -65,7 +59,7 @@ export function RequirementCard({
           <Check className="h-5 w-5" />
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -78,15 +72,10 @@ export function RequirementCardControlled({
   className,
 }: RequirementCardProps & { confirmed: boolean }) {
   return (
-    <motion.div
-      layout
-      initial={false}
-      animate={{
-        backgroundColor: confirmed ? "#E8F8F0" : "#FFFFFF",
-        borderColor: confirmed ? "#10B981" : "#E5E7EB",
-      }}
+    <div
       className={cn(
-        "flex items-center gap-4 rounded-lg border-2 p-5",
+        "flex items-center gap-4 rounded-lg border-2 p-5 transition-colors",
+        confirmed ? "bg-[#E8F8F0] border-[#10B981]" : "bg-white border-[#E5E7EB]",
         className
       )}
     >
@@ -115,6 +104,6 @@ export function RequirementCardControlled({
           <Check className="h-5 w-5" />
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

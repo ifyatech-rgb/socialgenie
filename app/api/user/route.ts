@@ -1,79 +1,117 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getAuthUserEmail, authOptions } from "@/lib/auth";
+import { getAuthUserEmail, getSessionForRequest, authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createAdminClient } from "@/lib/supabase/server";
+
+const USER_CACHE_MS = 15_000; // 15 seconds – reduces duplicate hits from layout/children
+const userCache = new Map<string, { data: object; cacheTime: number }>();
 
 /**
- * GET /api/user - Get current user data including credits (Prisma + optional Supabase sync)
+ * GET /api/user - Get current user data including credits (Prisma only, single source of truth).
+ * Resolves user by session.user.id first. Cached per user for 15s to avoid duplicate calls.
  */
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSessionForRequest(request);
     const userEmail = await getAuthUserEmail(request);
-    if (!userEmail) {
+    if (!session?.user && !userEmail) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: userEmail },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        credits: true,
-        plan: true,
-        payment_status: true,
-        niche: true,
-        platforms: true,
-        onboardingCompleted: true,
-        avatarUrl: true,
-        avatarStatus: true,
-        createdAt: true,
-        _count: {
+    // Same resolution order as dashboard: session user id first, then email
+    const userIdFromSession = session?.user?.id ?? null;
+    const emailNormalized = userEmail?.trim().toLowerCase() || undefined;
+    let user = userIdFromSession
+      ? await prisma.user.findUnique({
+          where: { id: userIdFromSession },
           select: {
-            scripts: true,
-            videos: true,
+            id: true,
+            email: true,
+            name: true,
+            image: true,
+            credits: true,
+            plan: true,
+            payment_status: true,
+            niche: true,
+            platforms: true,
+            onboardingCompleted: true,
+            avatarUrl: true,
+            avatarStatus: true,
+            customAvatarsLimit: true,
+            customAvatarsUsed: true,
+            videoCredits: true,
+            genieEdits: true,
+            createdAt: true,
+            _count: {
+              select: {
+                scripts: true,
+                videos: true,
+              },
+            },
+          },
+        })
+      : null;
+    if (!user && emailNormalized) {
+      user = await prisma.user.findUnique({
+        where: { email: emailNormalized },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          image: true,
+          credits: true,
+          plan: true,
+          payment_status: true,
+          niche: true,
+          platforms: true,
+          onboardingCompleted: true,
+          avatarUrl: true,
+          avatarStatus: true,
+          customAvatarsLimit: true,
+          customAvatarsUsed: true,
+          videoCredits: true,
+          genieEdits: true,
+          createdAt: true,
+          _count: {
+            select: {
+              scripts: true,
+              videos: true,
+            },
           },
         },
-      },
-    });
+      });
+    }
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Credits: prefer Prisma (source of truth). Use Supabase only if Prisma has no value.
-    let credits = user.credits != null ? user.credits : 0;
-    if (credits === 0) {
-      try {
-        const supabase = createAdminClient();
-        const { data } = await supabase
-          .from("profiles")
-          .select("credits")
-          .eq("email", user.email)
-          .maybeSingle();
-        const profile = data as { credits?: number | null } | null;
-        if (profile?.credits != null && typeof profile.credits === "number") {
-          credits = profile.credits;
-        }
-      } catch {
-        // keep Prisma value
-      }
+    const cached = userCache.get(user.id);
+    if (cached && Date.now() - cached.cacheTime < USER_CACHE_MS) {
+      return NextResponse.json(cached.data);
     }
 
-    return NextResponse.json({
+    const videoCreditsDb = user.videoCredits ?? 0;
+    const genieEditsDb = user.genieEdits ?? 0;
+    const creditsDisplay = user.credits ?? user.videoCredits ?? 0;
+
+    const responseData = {
       user: {
         ...user,
-        credits,
+        credits: creditsDisplay,
+        videoCredits: videoCreditsDb,
+        genieEdits: genieEditsDb,
         scriptsCount: user._count.scripts,
         videosCount: user._count.videos,
+        customAvatarsCreated: user.customAvatarsUsed ?? 0,
       },
-    });
-  } catch (error: any) {
+    };
+    userCache.set(user.id, { data: responseData, cacheTime: Date.now() });
+    return NextResponse.json(responseData);
+  } catch (error) {
     console.error("Error fetching user:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch user" },
+      { error: error instanceof Error ? error.message : "Failed to fetch user" },
       { status: 500 }
     );
   }

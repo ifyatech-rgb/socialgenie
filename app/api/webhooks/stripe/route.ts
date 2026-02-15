@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
+import { PLANS, type PlanKey } from "@/lib/plans"
 import { trackCreditsUsage, trackSubscriptionEvent } from "@/lib/tracking"
 
 const stripeClient = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null
 
-const TRIAL_CREDITS = 15 // 3 videos @ 5 credits each for trial
-const MONTHLY_CREDITS = 50 // 10 videos @ 5 credits each for $19/month plan
+function getPlanFromMetadata(metadata: Record<string, string> | null): PlanKey {
+  const key = metadata?.plan as PlanKey | undefined
+  if (key && (key === "creator" || key === "professional" || key === "enterprise")) return key
+  return "creator"
+}
 
 export async function POST(request: NextRequest) {
   if (!stripeClient) {
@@ -109,13 +113,17 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        const planKey = getPlanFromMetadata(session.metadata as Record<string, string> | null)
+        const planConfig = PLANS[planKey]
+        const planName = planConfig.name
+
         await prisma.$transaction([
           prisma.subscription.upsert({
             where: { userId: user.id },
             update: {
               stripeCustomerId: customerId,
               stripeSubscriptionId: subscriptionId,
-              plan: "starter",
+              plan: planKey,
               status: "trialing",
               trialEndsAt: trialEnd,
               currentPeriodStart: now,
@@ -126,7 +134,7 @@ export async function POST(request: NextRequest) {
             },
             create: {
               userId: user.id,
-              plan: "starter",
+              plan: planKey,
               status: "trialing",
               stripeCustomerId: customerId,
               stripeSubscriptionId: subscriptionId,
@@ -137,7 +145,6 @@ export async function POST(request: NextRequest) {
               duplicatePaymentMethod,
             },
           }),
-          // Mark user as paid and store Stripe ids; add credits if card not duplicated
           prisma.user.update({
             where: { id: user.id },
             data: {
@@ -145,7 +152,21 @@ export async function POST(request: NextRequest) {
               stripe_customer_id: customerId,
               stripe_subscription_id: subscriptionId,
               subscription_status: "trialing",
-              ...(duplicatePaymentMethod ? {} : { credits: TRIAL_CREDITS, plan: "starter" }),
+              ...(duplicatePaymentMethod
+                ? {}
+                : {
+                    plan: planKey,
+                    videoCredits: planConfig.videoCredits,
+                    videoCreditsUsed: 0,
+                    genieEdits: planConfig.genieEdits,
+                    genieEditsUsed: 0,
+                    customAvatarsLimit: planConfig.customAvatarsLimit,
+                    customAvatarsUsed: 0,
+                    maxVideoLength: planConfig.maxVideoLength,
+                    exportQuality: planConfig.exportQuality,
+                    hasWatermark: planConfig.hasWatermark,
+                    credits: planConfig.videoCredits,
+                  }),
             },
           }),
         ])
@@ -153,20 +174,20 @@ export async function POST(request: NextRequest) {
         if (duplicatePaymentMethod) {
           console.log("[Stripe webhook] checkout.session.completed: duplicate payment method for", email)
         } else {
-          console.log("[Stripe webhook] checkout.session.completed: subscription saved for", email)
+          console.log("[Stripe webhook] checkout.session.completed: plan", planKey, "for", email, "credits:", planConfig.videoCredits, "video,", planConfig.genieEdits, "genie")
           trackCreditsUsage({
             user_id: user.id,
-            amount: TRIAL_CREDITS,
-            reason: "trial_credits",
+            amount: planConfig.videoCredits,
+            reason: "plan_activated",
             reference_type: "stripe_subscription",
             reference_id: subscriptionId,
           })
           trackSubscriptionEvent({
             user_id: user.id,
             event_type: "checkout_completed",
-            plan: "starter",
+            plan: planKey,
             stripe_event_id: event.id,
-            metadata: { trialEnd: trialEnd?.toISOString() },
+            metadata: { trialEnd: trialEnd?.toISOString(), planName },
           })
         }
         break
@@ -252,28 +273,34 @@ export async function POST(request: NextRequest) {
         })
 
         if (existing) {
+          const planKey = (existing.user.plan ?? "creator") as PlanKey
+          const planConfig = PLANS[planKey] ?? PLANS.creator
           const updated = await prisma.user.update({
             where: { id: existing.userId },
             data: {
-              credits: { increment: MONTHLY_CREDITS },
               payment_status: "paid",
               subscription_status: "active",
+              videoCredits: planConfig.videoCredits,
+              videoCreditsUsed: 0,
+              genieEdits: planConfig.genieEdits,
+              genieEditsUsed: 0,
+              credits: planConfig.videoCredits,
             },
-            select: { credits: true },
+            select: { videoCredits: true, credits: true },
           })
-          console.log("[Stripe webhook] invoice.payment_succeeded: added credits for user", existing.userId)
+          console.log("[Stripe webhook] invoice.payment_succeeded: reset credits for user", existing.userId, "plan", planKey, "videoCredits", updated.videoCredits)
           trackCreditsUsage({
             user_id: existing.userId,
-            amount: MONTHLY_CREDITS,
-            reason: "monthly_credits",
+            amount: planConfig.videoCredits,
+            reason: "monthly_renewal",
             reference_type: "stripe_invoice",
             reference_id: invoice.id,
-            balance_after: updated.credits,
+            balance_after: updated.videoCredits,
           })
           trackSubscriptionEvent({
             user_id: existing.userId,
             event_type: "invoice_payment_succeeded",
-            plan: existing.user.plan ?? "starter",
+            plan: planKey,
             stripe_event_id: event.id,
           })
         }
