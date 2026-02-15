@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ...data, cached: false });
   } catch (error) {
     console.error("[HeyGen Avatars] Failed:", error);
-    const fallback = freeOnly ? cacheFree : cacheAll;
+    const fallback = cacheFree ?? cacheAll;
     if (fallback) {
       return NextResponse.json({ ...fallback.data, cached: true, stale: true });
     }
