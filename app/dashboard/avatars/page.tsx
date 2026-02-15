@@ -522,15 +522,18 @@ export default function AvatarsPage() {
         throw new Error((data?.message as string) ?? (data?.error as string) ?? "Failed to create avatar");
       }
 
+      const avatarId = typeof data.avatarId === "string" ? data.avatarId : String(data.avatarId ?? "");
+      if (!avatarId) throw new Error("No avatar ID returned");
+
       const timeEstimate = avatarType === "photo" ? "5-15 minutes" : "15-30 minutes";
       setCreationProgress({
-        avatarId: data.avatarId,
+        avatarId,
         status: "processing",
         estimatedTime: timeEstimate,
       });
       setShowCreateModal(false);
       resetCreationForm();
-      pollAvatarStatus(data.avatarId);
+      pollAvatarStatus(avatarId);
       toast.success(`Avatar creation started! Your avatar will be ready in ${timeEstimate}. We'll notify you when it's complete.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to create avatar");

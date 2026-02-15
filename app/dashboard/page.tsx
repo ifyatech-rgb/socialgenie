@@ -135,16 +135,17 @@ export default function DashboardPage() {
         const userRes = await authFetch("/api/user", { cache: "no-store" }, session);
         if (userRes.ok) {
           const { user: u } = await userRes.json();
-          const fallback = {
-            scriptsCount: u?.scriptsCount ?? 0,
-            videosCount: u?.videosCount ?? 0,
-            credits: u?.credits ?? 0,
+          const fallback: DashboardData = {
+            hasTrainingVideo: false,
+            scriptsCount: Number(u?.scriptsCount) || 0,
+            videosCount: Number(u?.videosCount) || 0,
+            credits: Number(u?.credits) || 0,
             recentScripts: [],
             recentVideos: [],
             subscription: null,
           };
-          setData(fallback as DashboardData);
-          setStats({ credits: fallback.credits, scriptsCount: fallback.scriptsCount, videosCount: fallback.videosCount });
+          setData(fallback);
+          setStats({ credits: fallback.credits ?? 0, scriptsCount: fallback.scriptsCount, videosCount: fallback.videosCount });
         } else {
           setData(null);
           setStats(null);
