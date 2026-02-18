@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Check, ChevronDown } from "lucide-react"
-import Navbar from "@/components/Navbar"
+import LandingNavbar from "@/components/LandingNavbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Section } from "@/components/ui/section"
@@ -16,7 +16,7 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-light">
-      <Navbar />
+      <LandingNavbar />
 
       <div className="pricing-page pt-16 lg:pt-24">
         {/* Header */}

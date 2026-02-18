@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import Navbar from "@/components/Navbar";
+import LandingNavbar from "@/components/LandingNavbar";
 import { Logo } from "@/components/logo";
 
 export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
@@ -44,7 +44,7 @@ export function Header({
 
   return (
     <header className={cn("relative w-full", className)} {...props}>
-      {children ?? <Navbar />}
+      {children ?? <LandingNavbar />}
     </header>
   );
 }
