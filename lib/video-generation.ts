@@ -12,7 +12,7 @@ export interface VideoGenerationRequest {
   scriptId: string;
   provider?: "did" | "heygen";
   voiceId?: string;
-  /** When true, do not send voice provider — D-ID uses the presenter's cloned voice. */
+  /** When true, do not send voice provider; D-ID uses the presenter's cloned voice. */
   useClonedVoice?: boolean;
   avatarId?: string;
   avatarUrl?: string;
@@ -173,7 +173,7 @@ export async function generateVideo(
           success: false,
           status: "failed",
           provider: "did",
-          error: "D-ID API key was rejected. Check DID_API_KEY in .env — use the key from your D-ID dashboard (one string, or email:password).",
+          error: "D-ID API key was rejected. Check DID_API_KEY in .env; use the key from your D-ID dashboard (one string, or email:password).",
         };
       }
       console.error("[D-ID] API error", res.status, body);

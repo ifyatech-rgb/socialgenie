@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { PLANS, type PlanKey } from "@/lib/plans"
 import Stripe from "stripe"
 
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -9,11 +10,14 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null
 
 const TRIAL_DAYS = 7
-const TRIAL_VIDEOS = 3
+
+/** Paid plan keys that have a Stripe Price ID. */
+const PAID_PLANS: PlanKey[] = ["creator", "professional", "enterprise"]
 
 /**
  * POST /api/stripe/checkout
- * Create Stripe Customer (if needed) and Checkout Session for subscription with 7-day trial.
+ * Create Stripe Customer (if needed) and Checkout Session for the chosen plan.
+ * Body: { email?, plan? }; plan must be one of: creator | professional | enterprise.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,19 +31,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const priceId = process.env.STRIPE_PRICE_ID
+    const body = await request.json().catch(() => ({}))
+    const planParam = (body.plan as string)?.toLowerCase()
+    const plan: PlanKey = PAID_PLANS.includes(planParam as PlanKey)
+      ? (planParam as PlanKey)
+      : "creator"
+
+    const planConfig = PLANS[plan]
+    const priceId = planConfig.priceId ?? process.env.STRIPE_PRICE_ID
     if (!priceId) {
       return NextResponse.json(
         {
           error:
-            "Stripe price not configured. Add your card in Settings to start your 7-day free trial.",
+            `Stripe price not configured for ${plan}. Add Price IDs in lib/plans.ts or set STRIPE_PRICE_ID for a single plan.`,
         },
         { status: 503 }
       )
     }
 
     const session = await getServerSession(authOptions)
-    const body = await request.json().catch(() => ({}))
     const email = (body.email as string)?.trim() || session?.user?.email
 
     if (!email) {
@@ -123,10 +133,10 @@ export async function POST(request: NextRequest) {
         trial_period_days: TRIAL_DAYS,
       },
       success_url: `${origin}/dashboard?success=true`,
-      cancel_url: `${origin}/checkout-required`,
+      cancel_url: `${origin}/checkout?canceled=true`,
       metadata: {
+        plan,
         trial_days: String(TRIAL_DAYS),
-        trial_videos: String(TRIAL_VIDEOS),
         ...(user?.id && { userId: user.id }),
       },
     })

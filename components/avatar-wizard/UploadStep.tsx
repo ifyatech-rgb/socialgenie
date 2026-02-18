@@ -67,7 +67,7 @@ export function UploadStep({
     syncedFileRef.current = file;
     const size = formatFileSize(file.file.size);
     if (avatarType === "photo") {
-      ctx.setMainVideo(file.file, "—", size);
+      ctx.setMainVideo(file.file, "", size);
       return;
     }
     const video = document.createElement("video");
@@ -111,7 +111,7 @@ export function UploadStep({
             <p className="text-center text-base text-[#6B7280]">
               {isPhoto
                 ? "Upload a clear photo of yourself (JPG, PNG, max 10MB)"
-                : "Upload a 2–5 minute video of yourself speaking (MP4, MOV)"}
+                : "Upload a 2 to 5 minute video of yourself speaking (MP4, MOV)"}
             </p>
             <UploadZone onUpload={handleUpload} mode={uploadMode} />
             {isPhoto ? (

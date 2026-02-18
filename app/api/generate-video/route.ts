@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Video generation started. This may take 2–5 minutes.",
+      message: "Video generation started. This may take 2 to 5 minutes.",
       videoId: result.videoId,
       status: result.status,
       scriptId: scriptRecord?.id ?? null,

@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,103 +9,108 @@ datasource db {
   schemas   = ["public"]
 }
 
-// Supabase profiles table (used by admin/activity via Supabase client). Kept in schema so Prisma doesn't drop it.
-// id/DateTime use @db.* so Prisma doesn't try to alter types (RLS policies depend on them).
 model Profile {
-  id            String    @id @db.Uuid
-  email         String    @unique
-  full_name     String?
-  role          String    @default("user")
-  credits       Int?
-  plan          String?
-  avatar_url    String?
-  status        String?
-  created_at    DateTime? @db.Timestamptz
-  updated_at    DateTime? @db.Timestamptz
-  last_active_at DateTime? @db.Timestamptz
+  id             String    @id @db.Uuid
+  email          String    @unique
+  full_name      String?
+  role           String    @default("user")
+  credits        Int?
+  plan           String?
+  avatar_url     String?
+  status         String?
+  created_at     DateTime? @db.Timestamptz(6)
+  updated_at     DateTime? @db.Timestamptz(6)
+  last_active_at DateTime? @db.Timestamptz(6)
+
   @@map("profiles")
   @@schema("public")
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  image         String?
-  password      String?   // Hashed password for credentials auth
-  emailVerified DateTime?
-  credits       Int       @default(10) // Legacy; prefer videoCredits for display
-  plan          String    @default("trial") // trial, creator, professional, enterprise
-  niche         String?   // User's content niche
-
-  // New pricing: video credits + Genie edits per plan
-  videoCredits    Int     @default(3)   // Current video credits (trial: 3)
-  videoCreditsUsed Int    @default(0)   // Used this period
-  genieEdits      Int     @default(5)   // Current Genie script edits (trial: 5)
-  genieEditsUsed  Int     @default(0)   // Used this period
-  maxVideoLength  Int     @default(60)  // Max video seconds (plan-based)
-  exportQuality   String  @default("720p") // 720p, 1080p, 4K
-  hasWatermark    Boolean @default(true)   // Trial: true
-  platforms     String?   // Comma-separated platforms
-  onboardingCompleted Boolean @default(false)
-
-  // Payment gating: pending until Stripe checkout completes
-  payment_status       String    @default("pending") // 'pending' | 'paid' | 'trial'
-  stripe_customer_id  String?
+  id                     String           @id @default(cuid())
+  email                  String           @unique
+  name                   String?
+  image                  String?
+  password               String?
+  emailVerified          DateTime?
+  credits                Int              @default(10)
+  plan                   String           @default("trial")
+  niche                  String?
+  platforms              String?
+  onboardingCompleted    Boolean          @default(false)
+  avatarId               String?
+  avatarUrl              String?
+  avatarStatus           String?
+  avatarVoiceId          String?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  payment_status         String           @default("pending")
+  stripe_customer_id     String?
   stripe_subscription_id String?
-  subscription_status String?   // active, trialing, cancelled, etc.
+  subscription_status    String?
+  customAvatarIds        Json?
+  customAvatarsLimit     Int              @default(1)
+  customAvatarsUsed      Int              @default(0)
+  exportQuality          String           @default("720p")
+  genieEdits             Int              @default(5)
+  genieEditsUsed         Int              @default(0)
+  hasWatermark           Boolean          @default(true)
+  maxVideoLength         Int              @default(60)
+  videoCredits           Int              @default(3)
+  videoCreditsUsed       Int              @default(0)
+  accounts               Account[]
+  activities             Activity[]
+  avatars                Avatar[]
+  generatedVideos        GeneratedVideo[]
+  onboarding             Onboarding?
+  scripts                Script[]
+  sessions               Session[]
+  subscriptions          Subscription?
+  trainingVideos         TrainingVideo[]
+  videos                 Video[]
 
-  // Custom Avatar (D-ID) - cloned from video
-  avatarId      String?   // D-ID agent/presenter ID (from video clone)
-  avatarUrl     String?   // Avatar thumbnail or source video URL
-  avatarStatus  String?   // pending, processing, ready, failed
-  avatarVoiceId String?   // Not used - D-ID clones voice from video
-
-  // Custom avatar upload limits (HeyGen photo/video avatars)
-  customAvatarsLimit Int   @default(1)  // Max custom avatars allowed by plan (trial: 1)
-  customAvatarsUsed  Int   @default(0)  // How many created
-  customAvatarIds    Json?              // Array of created HeyGen avatar IDs
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  accounts         Account[]
-  sessions         Session[]
-  videos           Video[]
-  scripts          Script[]
-  generatedVideos  GeneratedVideo[]
-  trainingVideos   TrainingVideo[]
-  subscriptions    Subscription?
-  activities       Activity[]
-  avatars          Avatar[]
   @@index([email])
   @@index([plan])
   @@schema("public")
 }
 
-// Training video uploaded for D-ID avatar cloning (face + voice from video)
-model TrainingVideo {
-  id                String   @id @default(cuid())
-  userId            String
-  videoUrl          String   // Public URL of uploaded video
-  didAvatarId       String?  // D-ID agent/presenter ID when clone is ready
-  processingStatus  String   @default("pending") // pending, processing, completed, failed
-  processingError   String?  // Error message if failed
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+model Onboarding {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  describeYou        String?
+  mainGoal           String?
+  videosPerMonth     String?
+  usedAiTools        String?
+  whenPlanningStart  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@schema("public")
+}
+
+model TrainingVideo {
+  id               String   @id @default(cuid())
+  userId           String
+  videoUrl         String
+  didAvatarId      String?
+  processingStatus String   @default("pending")
+  processingError  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@schema("public")
 }
 
 model Activity {
   id        String   @id @default(cuid())
   userId    String
-  action    String   // script.generated, video.uploaded, etc.
-  details   String?  // JSON string with additional data
+  action    String
+  details   String?
   createdAt DateTime @default(now())
-  
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@schema("public")
 }
 
@@ -125,8 +127,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@schema("public")
@@ -138,6 +139,7 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@schema("public")
 }
 
@@ -151,61 +153,53 @@ model VerificationToken {
 }
 
 model Video {
-  id          String   @id @default(cuid())
-  userId      String
-  filename    String
-  url         String
-  duration    Int?     // in seconds
-  status      String   @default("uploaded") // uploaded, processing, ready, error
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scripts     Script[]
+  id        String   @id @default(cuid())
+  userId    String
+  filename  String
+  url       String
+  duration  Int?
+  status    String   @default("uploaded")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  scripts   Script[]
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@schema("public")
 }
 
 model Script {
-  id          String   @id @default(cuid())
-  userId      String
-  videoId     String?
-  topic       String
-  platform    String   // TikTok, Instagram, YouTube
-  tone        String   // Educational, Entertaining, Motivational, Controversial
-  length      Int      // in seconds: AI-determined 30-120 (short 30-50, medium 50-80, long 80-120)
-  content     String   @db.Text // The generated script
-  status      String   @default("generated") // generated, video_processing, video_ready, error
-
-  // AI Script Refinement - draft vs finalized, credits charged only on finalize
-  lifecycleStatus String   @default("draft") // "draft" | "finalized"
-  refinementCount Int      @default(0)
-  finalizedAt     DateTime?
-  creditCharged   Boolean  @default(false)
-  chatHistory     Json?    // AI refinement conversation
-  
-  // Generated video fields
-  generatedVideoId   String?  // External video ID from D-ID or HeyGen
-  generatedVideoUrl  String?  // Final video URL
-  videoProvider      String?  // did, heygen
-  videoStatus        String?  // pending, processing, completed, failed
-  videoProgress      Int?     // 0-100 progress percentage while generating
-  videoError         String?  // Error message if failed
-  
-  // Project / display fields (HeyGen-style)
-  projectName    String?   // Display name (defaults to topic)
-  thumbnailUrl   String?   // Thumbnail for card
-  duration       Int?      // Actual video duration in seconds (when ready)
-  views         Int       @default(0)
-  lastViewedAt  DateTime?
-  isFavorite    Boolean   @default(false)
-  tags          String[]  @default([])
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video            Video?           @relation(fields: [videoId], references: [id], onDelete: SetNull)
-  generatedVideos  GeneratedVideo[]
+  id                String           @id @default(cuid())
+  userId            String
+  videoId           String?
+  topic             String
+  platform          String
+  tone              String
+  length            Int
+  content           String
+  status            String           @default("generated")
+  generatedVideoId  String?
+  generatedVideoUrl String?
+  videoProvider     String?
+  videoStatus       String?
+  videoProgress     Int?
+  videoError        String?
+  projectName       String?
+  thumbnailUrl      String?
+  duration          Int?
+  views             Int              @default(0)
+  lastViewedAt      DateTime?
+  isFavorite        Boolean          @default(false)
+  tags              String[]         @default([])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  chatHistory       Json?
+  creditCharged     Boolean          @default(false)
+  finalizedAt       DateTime?
+  lifecycleStatus   String           @default("draft")
+  refinementCount   Int              @default(0)
+  generatedVideos   GeneratedVideo[]
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video             Video?           @relation(fields: [videoId], references: [id])
 
   @@index([userId])
   @@index([lifecycleStatus])
@@ -215,25 +209,24 @@ model Script {
   @@schema("public")
 }
 
-// One row per generated video; same script can have many videos (unlimited generations).
 model GeneratedVideo {
-  id                 String   @id @default(cuid())
-  userId             String
-  scriptId           String
-  generatedVideoId   String   // HeyGen (or other provider) video id
-  generatedVideoUrl  String?
-  videoProvider      String   @default("heygen")
-  videoStatus        String?  // pending, processing, completed, failed
-  videoProgress      Int?
-  videoError         String?
-  projectName        String?
-  thumbnailUrl       String?
-  duration           Int?
-  createdAt          DateTime @default(now())
+  id                String   @id @default(cuid())
+  userId            String
+  scriptId          String
+  generatedVideoId  String
+  generatedVideoUrl String?
+  videoProvider     String   @default("heygen")
+  videoStatus       String?
+  videoProgress     Int?
+  videoError        String?
+  projectName       String?
+  thumbnailUrl      String?
+  duration          Int?
+  createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  script            Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  script Script @relation(fields: [scriptId], references: [id], onDelete: Cascade)
   @@index([userId])
   @@index([createdAt])
   @@index([userId, createdAt])
@@ -241,40 +234,41 @@ model GeneratedVideo {
 }
 
 model Subscription {
-  id                         String    @id @default(cuid())
-  userId                     String    @unique
-  plan                       String    // free, basic, pro, trialing
-  status                     String    // active, cancelled, expired, trialing, past_due
-  stripeCustomerId           String?
-  stripeSubscriptionId       String?
-  trialEndsAt                DateTime?
-  currentPeriodStart         DateTime
-  currentPeriodEnd           DateTime
-  paymentMethodFingerprint   String?   // Stripe card fingerprint for duplicate-card detection
-  duplicatePaymentMethod    Boolean   @default(false) // true if card already used by another account
-  createdAt                  DateTime  @default(now())
-  updatedAt                  DateTime  @updatedAt
+  id                       String    @id @default(cuid())
+  userId                   String    @unique
+  plan                     String
+  status                   String
+  stripeCustomerId         String?
+  stripeSubscriptionId     String?
+  trialEndsAt              DateTime?
+  currentPeriodStart       DateTime
+  currentPeriodEnd         DateTime
+  paymentMethodFingerprint String?
+  duplicatePaymentMethod   Boolean   @default(false)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user                       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@schema("public")
 }
 
 model Avatar {
-  id               String   @id @default(cuid())
-  userId           String
-  name             String
-  type             String   // ugc, lifestyle, community
-  status           String   @default("processing") // processing, completed, failed
-  heygenAvatarId   String?
-  videoId          String?  // Main video asset ID from HeyGen
-  consentVideoId   String?  // Consent video asset ID from HeyGen
-  imageUrl         String?
-  videoUrl         String?
-  error            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  type           String
+  status         String   @default("processing")
+  heygenAvatarId String?
+  videoId        String?
+  consentVideoId String?
+  imageUrl       String?
+  videoUrl       String?
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId])
+  @@index([heygenAvatarId])
   @@schema("public")
 }

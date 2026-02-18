@@ -11,7 +11,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "postinstall": "prisma generate",
-    "lint": "next lint"
+    "lint": "next lint",
+    "set-email-paid": "node scripts/set-email-paid.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

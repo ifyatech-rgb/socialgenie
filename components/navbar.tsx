@@ -50,7 +50,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-in-out ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-in-out overflow-x-hidden max-w-[100vw] ${
         isVisible ? "translate-y-0" : "-translate-y-full"
       } ${
         isScrolled
@@ -58,13 +58,13 @@ export default function Navbar() {
           : "bg-transparent"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
-          {/* Logo */}
-          <Logo size={44} showText={true} href="/" className="flex-shrink-0" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 min-w-0 w-full">
+        <div className="flex items-center justify-between h-20 min-h-[56px] min-w-0 gap-2">
+          {/* Logo - size 44 on desktop; mobile overflow constrained via max-w (md:max-w-none restores desktop) */}
+          <Logo size={44} showText={true} href="/" className="flex-shrink-0 min-w-0 max-w-[calc(100vw-120px)] md:max-w-none" />
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-10">
             {navLinks.map((link) => (
               <Link
                 key={link.name}
@@ -88,10 +88,12 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Menu Button - min 48px tap target */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-purple-50 transition-colors"
+            className="md:hidden p-3 min-h-[48px] min-w-[48px] rounded-xl hover:bg-purple-50 transition-colors duration-200 flex items-center justify-center"
+            aria-expanded={isMobileMenuOpen}
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
           >
             {isMobileMenuOpen ? (
               <X className="w-6 h-6 text-gray-700" />
@@ -102,24 +104,28 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden bg-white/95 backdrop-blur-xl border-t border-purple-100/50 shadow-xl">
-          <div className="px-4 py-6 space-y-4">
+      {/* Mobile Menu - slide down with CSS transition */}
+      <div
+        className={`md:hidden overflow-hidden transition-all duration-300 ease-out ${
+          isMobileMenuOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="bg-white/95 backdrop-blur-xl border-t border-purple-100/50 shadow-xl px-4 sm:px-6 py-6">
+          <div className="space-y-1">
             {navLinks.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
                 onClick={(e) => scrollToSection(e, link.href)}
-                className="block py-2 text-gray-700 hover:text-purple-600 font-medium transition-colors"
+                className="block py-3 px-2 min-h-[48px] flex items-center text-gray-700 hover:text-purple-600 font-medium transition-colors duration-200 rounded-lg hover:bg-purple-50/50"
               >
                 {link.name}
               </Link>
             ))}
-            <div className="pt-4 border-t border-purple-100">
+            <div className="pt-4 mt-2 border-t border-purple-100">
               <Link
                 href="/auth/signin"
-                className="block w-full text-center py-2.5 border-2 border-gray-200 text-gray-700 rounded-full font-semibold"
+                className="flex items-center justify-center w-full min-h-[48px] py-3 px-4 border-2 border-gray-200 text-gray-700 rounded-2xl font-semibold hover:border-purple-300 hover:bg-purple-50/50 transition-all duration-200"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Sign In
@@ -127,7 +133,7 @@ export default function Navbar() {
             </div>
           </div>
         </div>
-      )}
+      </div>
     </nav>
   );
 }

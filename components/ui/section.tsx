@@ -24,10 +24,11 @@ export function Section({
     gradient: "text-white",
   }
 
+  /* Mobile-first section padding */
   const paddingClasses = {
-    sm: "py-12 sm:py-16",
-    md: "py-16 sm:py-20",
-    lg: "py-20 sm:py-24 lg:py-32",
+    sm: "pt-12 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-20",
+    md: "pt-16 pb-16 sm:pt-20 sm:pb-20 lg:pt-24 lg:pb-24",
+    lg: "section-padding",
   }
 
   // Use inline styles for custom backgrounds
@@ -43,11 +44,14 @@ export function Section({
       className={cn(
         bgClasses[background],
         paddingClasses[padding],
-        "overflow-x-hidden",
+        "w-full min-w-0 max-w-full",
         className
       )}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0">
+      <div className={cn(
+        "max-w-7xl mx-auto w-full min-w-0 max-w-full box-border",
+        padding === "lg" ? "" : "px-4 sm:px-6 lg:px-10 xl:px-12"
+      )}>
         {children}
       </div>
     </section>

@@ -7,14 +7,21 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff, X, Check, CreditCard } from "lucide-react"
 import { toast } from "sonner"
 import { LogoIcon } from "@/components/logo"
+import { PLANS, type PlanKey } from "@/lib/plans"
 
 const REDIRECT_MESSAGE = "You already have an account! Redirecting to sign in..."
 const REDIRECT_DELAY_MS = 2000
+
+const PAID_PLANS: PlanKey[] = ["creator", "professional", "enterprise"]
 
 export default function SignupPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const canceled = searchParams?.get("canceled") === "1"
+  const planParam = searchParams?.get("plan")?.toLowerCase()
+  const selectedPlan: PlanKey = PAID_PLANS.includes(planParam as PlanKey) ? (planParam as PlanKey) : "creator"
+  const planConfig = PLANS[selectedPlan]
+  const trialCredits = PLANS.trial.videoCredits
 
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -99,36 +106,12 @@ export default function SignupPage() {
         return
       }
 
-      toast.success("Account created! Redirecting to secure checkout…")
+      toast.success("Account created! Complete onboarding to continue.")
       router.refresh()
-
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email }),
-      })
-
-      const data = await res.json().catch(() => ({}))
-
-      if (res.ok && data.url) {
-        window.location.href = data.url
-        return
-      }
-
-      if (res.status === 400 && (data.code === "EMAIL_EXISTS" || data.error?.includes("already registered"))) {
-        setEmailExists(true)
-        setRedirecting(true)
-        toast.info(REDIRECT_MESSAGE)
-        setLoading(false)
-        const emailParam = encodeURIComponent(formData.email.trim())
-        setTimeout(() => router.push(`/auth/signin?email=${emailParam}&message=account_exists`), REDIRECT_DELAY_MS)
-        return
-      }
-
-      if (res.status === 503) {
-        toast.success("You get 10 free credits! Add your card in Settings for continued access after trial.")
-      }
-      router.push("/dashboard")
+      const plan = searchParams?.get("plan")?.toLowerCase()
+      const planParam = plan === "professional" || plan === "enterprise" ? plan : "creator"
+      window.location.href = `/onboarding?plan=${planParam}`
+      return
     } catch (err) {
       toast.error("Something went wrong. Please try again.")
     } finally {
@@ -137,7 +120,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 overflow-x-hidden">
+    <div className="min-h-screen relative flex items-center justify-center p-6 sm:p-8 overflow-x-hidden">
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-purple-900/50 to-gray-900" />
         <div className="absolute top-20 left-20 w-96 h-96 bg-primary/30 rounded-full filter blur-[100px]" />
@@ -146,16 +129,16 @@ export default function SignupPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-md mx-4 sm:mx-0">
-        <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.4)] overflow-hidden">
           <Link
             href="/"
-            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-800 z-10"
+            className="absolute top-4 right-4 p-3 min-h-[48px] min-w-[48px] flex items-center justify-center text-gray-400 hover:text-white transition-colors duration-200 rounded-xl hover:bg-gray-800 z-10"
           >
             <X className="h-5 w-5" />
           </Link>
 
-          <div className="p-6 sm:p-8">
-            <div className="text-center mb-6">
+          <div className="p-8 sm:p-10">
+            <div className="text-center mb-8">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <LogoIcon size={48} />
               </div>
@@ -163,14 +146,14 @@ export default function SignupPage() {
                 Start your 7-day free trial
               </h1>
               <p className="text-gray-400 text-sm">
-                10 free credits • No charge for 7 days
+                {trialCredits} free credits during trial • No charge for 7 days
               </p>
               <div className="flex items-center justify-center gap-4 mt-3 text-sm text-gray-500">
                 <span className="flex items-center gap-1">
                   <Check className="h-4 w-4 text-success" /> 7-day free trial
                 </span>
                 <span className="flex items-center gap-1">
-                  <Check className="h-4 w-4 text-success" /> 10 free credits
+                  <Check className="h-4 w-4 text-success" /> {trialCredits} free credits
                 </span>
               </div>
               {/* Step indicator: card details are on the next page (Stripe) */}
@@ -188,7 +171,7 @@ export default function SignupPage() {
 
             {canceled && (
               <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm">
-                Checkout was canceled. You can add your card later in Settings and still use your 10 free credits.
+                Checkout was canceled. You can add your card later in Settings and still use your {trialCredits} free credits.
               </div>
             )}
 
@@ -214,7 +197,7 @@ export default function SignupPage() {
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleChange}
-                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200"
                     required
                   />
                 </div>
@@ -225,7 +208,7 @@ export default function SignupPage() {
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleChange}
-                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200"
                     required
                   />
                 </div>
@@ -240,7 +223,7 @@ export default function SignupPage() {
                   onChange={handleChange}
                   onBlur={handleEmailBlur}
                   placeholder="name@example.com"
-                  className={`w-full min-h-12 px-4 py-3 bg-gray-800 border rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 ${
+                  className={`w-full min-h-[48px] px-4 py-3 bg-gray-800 border rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 transition-colors duration-200 ${
                     emailExists ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-gray-700 focus:border-primary focus:ring-primary"
                   }`}
                   required
@@ -256,14 +239,14 @@ export default function SignupPage() {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="Min 8 characters"
-                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary pr-12"
+                    className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200 pr-12"
                     required
                     minLength={8}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white rounded-lg"
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
@@ -279,13 +262,13 @@ export default function SignupPage() {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder="Confirm password"
-                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary pr-12"
+                    className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200 pr-12"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white rounded-lg"
                   >
                     {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
@@ -295,7 +278,7 @@ export default function SignupPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="signup-trial-button w-full min-h-12 sm:min-h-14 py-4 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-base sm:text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30 min-w-0"
+                className="signup-trial-button w-full min-h-[52px] sm:min-h-[56px] py-4 px-6 rounded-2xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-base sm:text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30 min-w-0 active:scale-[0.98]"
               >
                 <div className="button-content flex items-center justify-center gap-2">
                   {loading ? (
@@ -309,7 +292,7 @@ export default function SignupPage() {
                   <span>{loading ? "Processing…" : "Start 7-Day Free Trial"}</span>
                 </div>
                 <small className="subtext text-white/90 text-sm font-normal">
-                  Then $19/month • Cancel anytime
+                  Then ${planConfig.price}/month • Cancel anytime
                 </small>
               </button>
             </form>

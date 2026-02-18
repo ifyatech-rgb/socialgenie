@@ -136,7 +136,7 @@ export default function CreateAvatarWizardPage() {
         }
         throw new Error((data?.message as string) ?? (data?.error as string) ?? "Creation failed");
       }
-      const processingTime = avatarType === "photo" ? "5–15 minutes" : "15–30 minutes";
+      const processingTime = avatarType === "photo" ? "5 to 15 minutes" : "15 to 30 minutes";
       toast.success(`Avatar creation started (${processingTime}). We'll notify you when it's ready.`);
       setAvatarsUsed((prev) => prev + 1);
       router.push("/dashboard/avatars");

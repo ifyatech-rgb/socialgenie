@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUserEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getHeyGenClient } from "@/lib/heygenClient";
+import { checkAvatarAccess } from "@/lib/checkAvatarAccess";
 import { cleanScript } from "@/lib/scriptCleaner";
 import { stripSectionHeadersForTTS } from "@/lib/scriptFormatter";
 import { trackCreditsUsage, trackVideoGeneration } from "@/lib/tracking";
@@ -58,6 +59,14 @@ export async function POST(request: NextRequest) {
           upgradeRequired: true,
         },
         { status: 402 }
+      );
+    }
+
+    const canUseAvatar = await checkAvatarAccess(user.id, avatarId.trim());
+    if (!canUseAvatar) {
+      return NextResponse.json(
+        { error: "forbidden", message: "You do not have access to this avatar" },
+        { status: 403 }
       );
     }
 

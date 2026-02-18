@@ -447,7 +447,7 @@ export default function ScriptsPage() {
           <div>
             <h4 className="font-bold text-emerald-800">Smart Script Length</h4>
             <p className="mt-1 text-sm text-emerald-700">
-              Our AI analyzes your topic and automatically determines the perfect script length — whether it needs a
+              Our AI analyzes your topic and automatically determines the perfect script length, whether it needs a
               quick 30-second tip or a detailed 2-minute explanation. No manual timing needed!
             </p>
           </div>

@@ -1,28 +1,29 @@
 /* SOCIALGENIE DESIGN SYSTEM - FRAMER INSPIRED */
 
 :root {
-  /* Colors - Purple/Blue Gradient Theme */
-  --sg-primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --sg-primary: #667eea;
-  --sg-primary-dark: #764ba2;
-  --sg-secondary: #4caf50;
-  --sg-accent: #ff6b6b;
+  /* Colors - Landing screenshot: Purple/Pink gradient */
+  --sg-primary-gradient: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
+  --sg-primary: #9333ea;
+  --sg-primary-dark: #ec4899;
+  --sg-secondary: #10b981;
+  --sg-accent: #ec4899;
 
-  /* Neutral Colors */
+  /* Neutral - Light theme (FAF9FE, F5F3FF) */
   --sg-bg-primary: #ffffff;
-  --sg-bg-secondary: #f8f9fa;
-  --sg-bg-tertiary: #f0f2f5;
-  --sg-text-primary: #1a1a1a;
-  --sg-text-secondary: #666666;
-  --sg-text-light: #999999;
-  --sg-border: #e0e0e0;
+  --sg-bg-secondary: #faf9fe;
+  --sg-bg-tertiary: #f5f3ff;
+  --sg-text-primary: #111827;
+  --sg-text-secondary: #4b5563;
+  --sg-text-light: #9ca3af;
+  --sg-border: #e5e7eb;
+  --sg-border-light: #f3f4f6;
 
   /* Shadows */
-  --sg-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --sg-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
-  --sg-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.16);
-  --sg-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.2);
-  --sg-shadow-gradient: 0 8px 32px rgba(102, 126, 234, 0.3);
+  --sg-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --sg-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --sg-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --sg-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
+  --sg-shadow-gradient: 0 8px 32px rgba(147, 51, 234, 0.3);
 
   /* Spacing */
   --sg-xs: 8px;
@@ -145,7 +146,7 @@
 
 .sg-btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 12px 40px rgba(147, 51, 234, 0.35);
 }
 
 .sg-btn-secondary {
@@ -177,17 +178,17 @@
   border-radius: var(--sg-radius-full);
   font-size: var(--sg-font-size-sm);
   font-weight: 700;
-  background: rgba(102, 126, 234, 0.1);
+  background: rgba(147, 51, 234, 0.1);
   color: var(--sg-primary);
-  border: 1px solid rgba(102, 126, 234, 0.2);
+  border: 1px solid rgba(147, 51, 234, 0.2);
 }
 
 /* Glassmorphism */
 .sg-glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(243, 244, 246, 0.9);
 }
 
 .sg-glass-dark {

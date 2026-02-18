@@ -103,7 +103,7 @@ export async function POST(
 
       return NextResponse.json({
         success: true,
-        message: "Video generation started. This may take 2–5 minutes.",
+        message: "Video generation started. This may take 2 to 5 minutes.",
         mode: "heygen",
         videoId: result.videoId,
         status: result.status,

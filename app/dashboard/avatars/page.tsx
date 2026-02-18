@@ -17,12 +17,12 @@ import {
 } from "lucide-react";
 import { useCredits } from "@/app/dashboard/credits-context";
 import { authFetch } from "@/lib/auth-fetch";
+import { getScriptCreditCost } from "@/lib/calculateVideoCredits";
 import { toast } from "sonner";
 
 const PENDING_SCRIPT_KEY = "pendingScript";
 const SELECTED_AVATAR_KEY = "selectedAvatarId";
 const POLL_INTERVAL_MS = 5000;
-const VIDEO_CREDITS = 5;
 const AVATARS_PER_PAGE = 20;
 
 type PendingScript = { scriptId?: string; script: string; topic: string; platform: string };
@@ -36,6 +36,7 @@ type AvatarItem = {
   isPublic?: boolean;
   isCustom?: boolean;
   category?: string;
+  avatarType?: "public" | "custom" | "ugc";
   aspectRatio?: string;
   width?: number;
   height?: number;
@@ -87,6 +88,7 @@ export default function AvatarsPage() {
   const [selectedScriptForPicker, setSelectedScriptForPicker] = useState<ScriptListItem | null>(null);
   const [videoAspectRatio, setVideoAspectRatio] = useState<"9:16" | "16:9">("9:16");
   const [avatarPage, setAvatarPage] = useState(1);
+  const [avatarTab, setAvatarTab] = useState<"my-avatars" | "public" | "ugc">("public");
 
   // Custom avatar creation wizard
   const [creationStep, setCreationStep] = useState<1 | 2 | 3 | 4>(1);
@@ -309,12 +311,12 @@ export default function AvatarsPage() {
 
   const handleGenerateVideo = async () => {
     if (!pendingScript || !selectedAvatar || !selectedVoice || !session) {
-      toast.error("Please select an avatar and voice");
+      toast.error("Please select an avatar");
       return;
     }
     const effectiveCredits = creditsFromContext ?? credits;
-    if (effectiveCredits !== null && effectiveCredits < VIDEO_CREDITS) {
-      toast.error(`Need ${VIDEO_CREDITS} credits`);
+    if (effectiveCredits !== null && effectiveCredits < creditCost) {
+      toast.error(`Need ${creditCost} credits for this video (≈${scriptCredit.estimatedDurationSeconds}s)`);
       return;
     }
     setIsGenerating(true);
@@ -346,7 +348,7 @@ export default function AvatarsPage() {
       setVideoId(data.videoId ?? null);
       setVideoStatus("processing");
       setCredits(data.remainingCredits ?? effectiveCredits);
-      toast.success("Video generation started (2–5 min)");
+      toast.success("Video generation started (2 to 5 min)");
       if (typeof window !== "undefined") {
         localStorage.setItem("dashboard-refresh", Date.now().toString());
         window.dispatchEvent(new CustomEvent("dashboard-refresh"));
@@ -735,7 +737,12 @@ export default function AvatarsPage() {
   }, [stopConsentCamera]);
 
   const effectiveCredits = creditsFromContext ?? credits;
-  const canGenerate = !!selectedAvatar && !!selectedVoice && effectiveCredits !== null && effectiveCredits >= VIDEO_CREDITS;
+  const scriptCredit = useMemo(
+    () => (pendingScript?.script?.trim() ? getScriptCreditCost(pendingScript.script) : { estimatedDurationSeconds: 0, creditCost: 1 }),
+    [pendingScript?.script]
+  );
+  const creditCost = scriptCredit.creditCost;
+  const canGenerate = !!selectedAvatar && !!selectedVoice && effectiveCredits !== null && effectiveCredits >= creditCost;
 
   const filteredAvatars = useMemo(() => {
     return avatars.filter((a) => {
@@ -745,10 +752,20 @@ export default function AvatarsPage() {
     });
   }, [avatars, searchQuery, genderFilter]);
 
+  const isCustom = (a: AvatarItem) => !!a.isCustom || a.avatarType === "custom";
+  const isUgc = (a: AvatarItem) => a.avatarType === "ugc" || a.category === "ugc";
+  const isPublic = (a: AvatarItem) => !isCustom(a) && !isUgc(a);
+
+  const avatarsByTab = useMemo(() => {
+    if (avatarTab === "my-avatars") return filteredAvatars.filter(isCustom);
+    if (avatarTab === "ugc") return filteredAvatars.filter(isUgc);
+    return filteredAvatars.filter(isPublic);
+  }, [filteredAvatars, avatarTab]);
+
   /** Group avatars by base name for folder display (same avatar, multiple looks). Always use this for consistent organized view. */
   const avatarGroups = useMemo(() => {
     const map = new Map<string, AvatarItem[]>();
-    for (const a of filteredAvatars) {
+    for (const a of avatarsByTab) {
       const base = getAvatarBaseName(a.name);
       if (!map.has(base)) map.set(base, []);
       map.get(base)!.push(a);
@@ -756,7 +773,7 @@ export default function AvatarsPage() {
     return Array.from(map.entries())
       .map(([baseName, looks]) => ({ baseName, looks: looks.sort((x, y) => x.name.localeCompare(y.name)) }))
       .sort((a, b) => a.baseName.localeCompare(b.baseName));
-  }, [filteredAvatars, getAvatarBaseName]);
+  }, [avatarsByTab, getAvatarBaseName]);
 
   const totalAvatarPages = Math.max(1, Math.ceil(avatarGroups.length / AVATARS_PER_PAGE));
   const paginatedAvatarGroups = useMemo(() => {
@@ -766,7 +783,7 @@ export default function AvatarsPage() {
 
   useEffect(() => {
     setAvatarPage(1);
-  }, [searchQuery, genderFilter]);
+  }, [searchQuery, genderFilter, avatarTab]);
 
   if (!session) return <div className="flex min-h-[200px] items-center justify-center text-gray-500">Loading...</div>;
 
@@ -829,6 +846,54 @@ export default function AvatarsPage() {
           </div>
         </div>
 
+        {/* Tabs: My Avatars / Public Avatars / UGC Creators */}
+        <div className="mb-6 flex gap-2 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setAvatarTab("my-avatars")}
+            className={`px-4 py-3 font-semibold border-b-2 transition-colors ${
+              avatarTab === "my-avatars"
+                ? "border-violet-600 text-violet-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            My Avatars
+            {avatars.filter(isCustom).length > 0 && (
+              <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">
+                {avatars.filter(isCustom).length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAvatarTab("public")}
+            className={`px-4 py-3 font-semibold border-b-2 transition-colors ${
+              avatarTab === "public"
+                ? "border-violet-600 text-violet-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Public Avatars
+            <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+              {avatars.filter(isPublic).length}+
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAvatarTab("ugc")}
+            className={`px-4 py-3 font-semibold border-b-2 transition-colors ${
+              avatarTab === "ugc"
+                ? "border-violet-600 text-violet-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            UGC Creators
+            <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+              {avatars.filter(isUgc).length}+
+            </span>
+          </button>
+        </div>
+
         {/* Filters */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="relative flex-1">
@@ -852,6 +917,48 @@ export default function AvatarsPage() {
           </select>
         </div>
 
+        {avatarTab === "my-avatars" && !loadingAvatars && avatars.some((a) => a.isCustom) && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <svg className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <h4 className="font-semibold text-blue-900 mb-1">Private avatars</h4>
+              <p className="text-sm text-blue-800">
+                These are your personal avatars. Only you can see and use them. They are never shared with other users.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {avatarTab === "public" && !loadingAvatars && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <svg className="h-5 w-5 shrink-0 mt-0.5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+            </svg>
+            <div>
+              <h4 className="font-semibold text-gray-900 mb-1">Public avatars</h4>
+              <p className="text-sm text-gray-600">
+                Professional AI avatars available to all users. Choose from hundreds of options.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {avatarTab === "ugc" && !loadingAvatars && avatars.some(isUgc) && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+            <svg className="h-5 w-5 shrink-0 mt-0.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <h4 className="font-semibold text-gray-900 mb-1">UGC Creators</h4>
+              <p className="text-sm text-gray-600">
+                User-generated style avatars and talking photos for authentic, creator-style videos.
+              </p>
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
             <span className="text-amber-800">{error}</span>
@@ -870,8 +977,24 @@ export default function AvatarsPage() {
 
         {!loadingAvatars && !error && avatarGroups.length === 0 && (
           <div className="py-20 text-center">
-            <span className="text-6xl opacity-40">No avatars found</span>
-            <p className="mt-4 text-gray-600">Try adjusting your filters</p>
+            {avatarTab === "my-avatars" ? (
+              <>
+                <span className="text-6xl opacity-40">🎭</span>
+                <h3 className="mt-4 text-xl font-semibold text-gray-900">No custom avatars yet</h3>
+                <p className="mt-2 text-gray-600">Create your first custom avatar using the card above.</p>
+              </>
+            ) : avatarTab === "ugc" ? (
+              <>
+                <span className="text-6xl opacity-40">🎬</span>
+                <h3 className="mt-4 text-xl font-semibold text-gray-900">No UGC creators available yet.</h3>
+                <p className="mt-2 text-gray-600">UGC-style avatars will appear here when available from your provider.</p>
+              </>
+            ) : (
+              <>
+                <span className="text-6xl opacity-40">No avatars found</span>
+                <p className="mt-4 text-gray-600">Try adjusting your filters</p>
+              </>
+            )}
           </div>
         )}
 
@@ -907,7 +1030,15 @@ export default function AvatarsPage() {
                         <div className="flex h-full items-center justify-center text-5xl text-gray-400">👤</div>
                       )}
                       {first.isCustom && (
-                        <div className="absolute left-2 top-2 rounded-lg bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800">Custom</div>
+                        <div className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-blue-600 px-2 py-1 text-xs font-semibold text-white">
+                          <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                          </svg>
+                          Private
+                        </div>
+                      )}
+                      {!first.isCustom && (first.category === "ugc" || first.avatarType === "ugc") && (
+                        <div className="absolute left-2 top-2 z-10 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">UGC</div>
                       )}
                     </div>
                     <div className="border-t border-gray-100 p-3">
@@ -961,7 +1092,7 @@ export default function AvatarsPage() {
             >
               <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
                 <h2 className="text-lg font-bold text-gray-900">
-                  {looksModalFolder.baseName} – Choose a look
+                  {looksModalFolder.baseName}, choose a look
                 </h2>
                 <button
                   type="button"
@@ -2004,7 +2135,7 @@ export default function AvatarsPage() {
                 <dl className="mt-4 space-y-3">
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Gender</dt>
-                    <dd className="font-semibold text-gray-900 capitalize">{browseSelectedAvatar.gender ?? "—"}</dd>
+                    <dd className="font-semibold text-gray-900 capitalize">{browseSelectedAvatar.gender ?? ""}</dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Style</dt>
@@ -2057,7 +2188,7 @@ export default function AvatarsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Avatars & Voices</h1>
-          <p className="mt-1 text-gray-500">Select an avatar and voice to generate your video</p>
+          <p className="mt-1 text-gray-500">Select an avatar to generate your video (voice is auto-matched)</p>
         </div>
         <button onClick={handleClearAndBack} className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-4 w-4" />
@@ -2118,6 +2249,9 @@ export default function AvatarsPage() {
                     {first.isCustom && (
                       <div className="absolute left-2 top-2 rounded bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800">Custom</div>
                     )}
+                    {!first.isCustom && (first.category === "ugc" || first.avatarType === "ugc") && (
+                      <div className="absolute left-2 top-2 rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">UGC</div>
+                    )}
                   </div>
                   <div className="border-t border-gray-100 bg-white p-3">
                     <div className="truncate text-sm font-semibold text-gray-900">{baseName}</div>
@@ -2161,69 +2295,29 @@ export default function AvatarsPage() {
         <div className="rounded-2xl border-2 border-gray-200 bg-white p-6">
           <div className="mb-4 flex items-center gap-3 border-b border-gray-200 pb-4">
             <span className="rounded-lg bg-violet-600 px-3 py-1 text-sm font-bold text-white">Step 2</span>
-            <h2 className="text-lg font-bold text-gray-900">Select Voice for {selectedAvatar.name}</h2>
-          </div>
-          {loadingVoices ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-10 w-10 animate-spin text-violet-600" />
-              <span className="ml-3 text-gray-600">Loading voices...</span>
-            </div>
-          ) : avatarVoices.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">
-              <AlertCircle className="mx-auto mb-3 h-12 w-12 text-amber-500" />
-              <p>No voices available</p>
-            </div>
-          ) : (
-            <div className="max-h-64 space-y-2 overflow-y-auto">
-              {avatarVoices.map((voice) => (
-                <div
-                  key={voice.id}
-                  onClick={() => setSelectedVoice(voice.id)}
-                  className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border-2 p-3 transition-all ${
-                    selectedVoice === voice.id ? "border-violet-500 bg-violet-50/50" : "border-gray-200 bg-white hover:border-violet-300"
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 font-semibold text-gray-900">
-                      {voice.name}
-                      {voice.id === defaultVoice && (
-                        <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">Default</span>
-                      )}
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {voice.gender && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 capitalize">{voice.gender}</span>}
-                      {voice.accent && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{voice.accent}</span>}
-                    </div>
-                  </div>
-                  {voice.preview && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        new Audio(voice.preview).play();
-                      }}
-                      className="shrink-0 rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-violet-100 hover:text-violet-700"
-                    >
-                      Preview
-                    </button>
-                  )}
-                  {selectedVoice === voice.id && <span className="text-xl font-bold text-violet-600">✓</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {selectedAvatar && selectedVoice && (
-        <div className="rounded-2xl border-2 border-gray-200 bg-white p-6">
-          <div className="mb-4 flex items-center gap-3 border-b border-gray-200 pb-4">
-            <span className="rounded-lg bg-violet-600 px-3 py-1 text-sm font-bold text-white">Step 3</span>
             <h2 className="text-lg font-bold text-gray-900">Generate Video</h2>
           </div>
+          {loadingVoices ? (
+            <div className="mb-6 flex items-center gap-3 text-gray-500">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Matching voice to avatar…</span>
+            </div>
+          ) : selectedVoice && avatarVoices.length > 0 ? (
+            <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+              <span className="text-sm font-medium text-gray-700">Voice (auto-matched to avatar):</span>
+              <span className="font-semibold text-gray-900">
+                {avatarVoices.find((v) => v.id === selectedVoice)?.name ?? "Default"}
+              </span>
+            </div>
+          ) : avatarVoices.length === 0 && !loadingVoices ? (
+            <div className="mb-6 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" />
+              <span className="text-sm text-amber-800">No voices available for this avatar. Try another.</span>
+            </div>
+          ) : null}
 
           <div className="mb-6">
-            <p className="mb-3 text-sm font-semibold text-gray-700">Video orientation — how it will look</p>
+            <p className="mb-3 text-sm font-semibold text-gray-700">Video orientation: how it will look</p>
             <div className="grid grid-cols-2 gap-4 items-start">
               <button
                 type="button"
@@ -2288,11 +2382,11 @@ export default function AvatarsPage() {
                 Generating Video...
               </>
             ) : !canGenerate ? (
-              effectiveCredits !== null && effectiveCredits < VIDEO_CREDITS ? <>Need {VIDEO_CREDITS} Credits</> : <>Select Avatar & Voice</>
+              effectiveCredits !== null && effectiveCredits < creditCost ? <>Need {creditCost} Credits</> : <>Select Avatar</>
             ) : (
               <>
                 <Video className="h-5 w-5" />
-                Generate Video ({VIDEO_CREDITS} Credits)
+                Generate Video ({creditCost} Credits)
               </>
             )}
           </button>
@@ -2300,7 +2394,7 @@ export default function AvatarsPage() {
             <div className="mt-6 rounded-2xl border-2 border-violet-200 bg-violet-50 p-6 text-center">
               <Loader2 className="mx-auto mb-3 h-12 w-12 animate-spin text-violet-600" />
               <p className="font-medium text-gray-700">Creating your video...</p>
-              <p className="mt-1 text-sm text-gray-500">This usually takes 2–5 minutes.</p>
+              <p className="mt-1 text-sm text-gray-500">This usually takes 2 to 5 minutes.</p>
             </div>
           )}
           {videoStatus === "completed" && videoUrl && (

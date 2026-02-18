@@ -16,12 +16,12 @@ const PHOTO_CARD = {
   type: "photo" as const,
   icon: "📸",
   title: "Photo Avatar",
-  description: "Quick and easy — just one photo",
+  description: "Quick and easy, just one photo",
   badge: "Recommended",
   badgePro: false,
   features: [
     "Upload 1 clear photo",
-    "Ready in 5–15 minutes",
+    "Ready in 5 to 15 minutes",
     "Perfect for beginners",
   ],
 };
@@ -30,12 +30,12 @@ const VIDEO_CARD = {
   type: "video" as const,
   icon: "🎥",
   title: "Video Avatar",
-  description: "Most realistic — 2–5 min video",
+  description: "Most realistic, 2 to 5 min video",
   badge: "Pro Quality",
   badgePro: true,
   features: [
     "Natural movements",
-    "Ready in 15–30 minutes",
+    "Ready in 15 to 30 minutes",
     "Studio quality",
   ],
 };

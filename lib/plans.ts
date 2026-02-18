@@ -1,10 +1,13 @@
 /**
- * Plan configurations: Trial, Creator, Professional, Enterprise
+ * Plan configurations: Trial, Creator ($39), Professional ($79), Enterprise ($199).
+ * Creator: 20 credits | Professional: 50 credits | Enterprise: 150 credits.
+ * Replace priceId with your Stripe Price IDs from Dashboard → Products → Price.
  */
 
 export const PLANS = {
   trial: {
     name: "Free Trial",
+    description: "Try before you subscribe",
     price: 0,
     priceId: null as string | null,
     videoCredits: 3,
@@ -27,11 +30,23 @@ export const PLANS = {
       "Watermarked videos",
       "UGC Avatars",
     ],
+    limits: {
+      maxVideoLength: 60,
+      maxVideosPerMonth: 3,
+      genieEdits: 5,
+      customAvatars: 1,
+      exportQuality: "720p",
+      priorityRendering: false,
+      teamCollaboration: false,
+      apiAccess: false,
+      whiteLabel: false,
+    },
   },
   creator: {
     name: "Creator",
+    description: "Perfect for getting started",
     price: 39,
-    priceId: "price_creator_monthly",
+    priceId: process.env.STRIPE_PRICE_ID_CREATOR ?? "price_1T1NAMFCaF1zVyH5iIi8bosR",
     videoCredits: 20,
     genieEdits: 50,
     customAvatarsLimit: 5,
@@ -47,7 +62,7 @@ export const PLANS = {
     icon: "🟢",
     features: [
       "20 Video Credits / month",
-      "(≈ 13–20 videos depending on length)",
+      "(≈ 13 to 20 videos depending on length)",
       "Unlimited AI Script Generation",
       "50 Genie Script Edits",
       "500+ AI Avatars",
@@ -56,11 +71,23 @@ export const PLANS = {
       "720p Export",
       "Max 90 sec per video",
     ],
+    limits: {
+      maxVideoLength: 90,
+      maxVideosPerMonth: 20,
+      genieEdits: 50,
+      customAvatars: 5,
+      exportQuality: "720p",
+      priorityRendering: false,
+      teamCollaboration: false,
+      apiAccess: false,
+      whiteLabel: false,
+    },
   },
   professional: {
     name: "Professional",
+    description: "For serious creators",
     price: 79,
-    priceId: "price_professional_monthly",
+    priceId: process.env.STRIPE_PRICE_ID_PROFESSIONAL ?? "price_1T1NB0FCaF1zVyH5jcqFqVLi",
     videoCredits: 50,
     genieEdits: 150,
     customAvatarsLimit: 15,
@@ -77,7 +104,7 @@ export const PLANS = {
     badge: "Most Popular",
     features: [
       "50 Video Credits / month",
-      "(≈ 30–35 average videos)",
+      "(≈ 30 to 35 average videos)",
       "Everything in Creator plan",
       "150 Genie Edits",
       "100+ UGC Avatars",
@@ -85,11 +112,23 @@ export const PLANS = {
       "Priority Rendering",
       "Max 2 min per video",
     ],
+    limits: {
+      maxVideoLength: 120,
+      maxVideosPerMonth: 50,
+      genieEdits: 150,
+      customAvatars: 15,
+      exportQuality: "1080p",
+      priorityRendering: true,
+      teamCollaboration: false,
+      apiAccess: false,
+      whiteLabel: false,
+    },
   },
   enterprise: {
     name: "Enterprise",
+    description: "For teams and agencies",
     price: 199,
-    priceId: "price_enterprise_monthly",
+    priceId: process.env.STRIPE_PRICE_ID_ENTERPRISE ?? "price_1T1NBQFCaF1zVyH5ONhhPrLs",
     videoCredits: 150,
     genieEdits: 500,
     customAvatarsLimit: 999,
@@ -105,7 +144,7 @@ export const PLANS = {
     icon: "🔴",
     features: [
       "150 Video Credits / month",
-      "(≈ 80–100 videos average)",
+      "(≈ 80 to 100 videos average)",
       "Everything in Professional Plan",
       "500 Genie Edits",
       "Team Collaboration",
@@ -113,8 +152,19 @@ export const PLANS = {
       "White Label Option",
       "4K Export",
       "Dedicated Support",
-      "Max 3–5 min per video",
+      "Max 3 to 5 min per video",
     ],
+    limits: {
+      maxVideoLength: 300,
+      maxVideosPerMonth: 150,
+      genieEdits: 500,
+      customAvatars: 999,
+      exportQuality: "4K",
+      priorityRendering: true,
+      teamCollaboration: true,
+      apiAccess: true,
+      whiteLabel: true,
+    },
   },
 } as const;
 

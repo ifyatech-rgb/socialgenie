@@ -7,12 +7,18 @@ import { useSession } from "next-auth/react"
 import { CreditCard, Check, X } from "lucide-react"
 import { toast } from "sonner"
 import { LogoIcon } from "@/components/logo"
+import { PLANS, type PlanKey } from "@/lib/plans"
+
+const PAID_PLANS: PlanKey[] = ["creator", "professional", "enterprise"]
 
 export default function CheckoutPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const canceled = searchParams?.get("canceled") === "true"
+  const planParam = searchParams?.get("plan")?.toLowerCase()
+  const selectedPlan: PlanKey = PAID_PLANS.includes(planParam as PlanKey) ? (planParam as PlanKey) : "creator"
+  const planConfig = PLANS[selectedPlan]
 
   const [loading, setLoading] = useState(false)
 
@@ -25,11 +31,13 @@ export default function CheckoutPage() {
   async function handleSubscribe() {
     setLoading(true)
     try {
+      const plan = searchParams?.get("plan")?.toLowerCase()
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: session?.user?.email ?? undefined,
+          plan: plan === "creator" || plan === "professional" || plan === "enterprise" ? plan : "creator",
         }),
       })
 
@@ -93,7 +101,7 @@ export default function CheckoutPage() {
 
             <h1 className="text-2xl font-bold text-white mb-2">Start Your 7-Day Free Trial</h1>
             <p className="text-gray-400 mb-6">
-              Then just $19/month • Cancel anytime
+              Then ${planConfig.price}/month • Cancel anytime
             </p>
 
             {canceled && (
@@ -105,11 +113,11 @@ export default function CheckoutPage() {
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3 text-gray-300">
                 <Check className="h-5 w-5 text-green-400 flex-shrink-0" />
-                7-day free trial — no charge today
+                7-day free trial, no charge today
               </li>
               <li className="flex items-center gap-3 text-gray-300">
                 <Check className="h-5 w-5 text-green-400 flex-shrink-0" />
-                3 videos during trial • 10 videos/month after
+                3 videos during trial • {planConfig.videoCredits} videos/month after
               </li>
               <li className="flex items-center gap-3 text-gray-300">
                 <Check className="h-5 w-5 text-green-400 flex-shrink-0" />

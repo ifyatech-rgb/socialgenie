@@ -165,7 +165,7 @@ export function ConsentRecording({ userName, onComplete, onBack }: ConsentRecord
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // —— Instructions step ——
+  // Instructions step
   if (step === "instructions") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 p-4 sm:p-6 flex items-center justify-center">
@@ -248,14 +248,14 @@ export function ConsentRecording({ userName, onComplete, onBack }: ConsentRecord
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
               <circle cx="10" cy="10" r="8" />
             </svg>
-            I Understand — Start Recording
+            I Understand, Start Recording
           </button>
         </div>
       </div>
     );
   }
 
-  // —— Recording step (full screen + overlay) ——
+  // Recording step (full screen + overlay)
   if (step === "recording") {
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col">
@@ -352,7 +352,7 @@ export function ConsentRecording({ userName, onComplete, onBack }: ConsentRecord
     );
   }
 
-  // —— Verification step ——
+  // Verification step
   if (step === "verification") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 p-4 sm:p-6 flex items-center justify-center">

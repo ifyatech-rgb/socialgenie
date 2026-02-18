@@ -68,7 +68,7 @@ export function UploadZone({
         setError(
           isPhoto
             ? "Invalid file. Use JPG or PNG, up to 10MB."
-            : "Invalid file. Use MP4 or MOV, 30 sec – 5 min, up to 2GB."
+            : "Invalid file. Use MP4 or MOV, 30 sec to 5 min, up to 2GB."
         );
       }
     },

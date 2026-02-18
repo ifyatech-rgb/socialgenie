@@ -3,7 +3,7 @@ import type { Database } from '@/types/supabase'
 
 /**
  * Supabase admin client using the service role key.
- * Bypasses Row Level Security – use only in secure server-side code (API routes, server actions, tracking).
+ * Bypasses Row Level Security; use only in secure server-side code (API routes, server actions, tracking).
  *
  * Usage:
  *   import { getSupabaseAdmin } from '@/lib/supabase-admin'

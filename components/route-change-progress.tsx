@@ -8,19 +8,24 @@ export function RouteChangeProgress() {
   const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const NProgress = require("nprogress");
-    NProgress.configure({ showSpinner: false });
+    let NProgress: { start: () => void; done: () => void; configure: (o: { showSpinner: boolean }) => void } | null = null;
+    try {
+      NProgress = require("nprogress");
+      NProgress.configure({ showSpinner: false });
+    } catch {
+      return;
+    }
 
     const start = () => {
       if (doneTimerRef.current) {
         clearTimeout(doneTimerRef.current);
         doneTimerRef.current = null;
       }
-      NProgress.start();
+      NProgress?.start();
     };
 
     const done = () => {
-      NProgress.done();
+      NProgress?.done();
       if (doneTimerRef.current) {
         clearTimeout(doneTimerRef.current);
         doneTimerRef.current = null;

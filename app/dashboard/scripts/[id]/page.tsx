@@ -395,7 +395,7 @@ export default function ScriptViewPage() {
       }
 
       toast.success('Video generation started!');
-      setVideoProgress('Processing... this may take 2–5 minutes.');
+      setVideoProgress('Processing... this may take 2 to 5 minutes.');
 
       const scriptIdForPoll = script?.id?.trim?.();
       if (!scriptIdForPoll) {

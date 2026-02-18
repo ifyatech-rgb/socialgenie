@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { getAuthUserEmail, getSessionForRequest, authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const USER_CACHE_MS = 15_000; // 15 seconds – reduces duplicate hits from layout/children
+const USER_CACHE_MS = 15_000; // 15 seconds, reduces duplicate hits from layout/children
 const userCache = new Map<string, { data: object; cacheTime: number }>();
 
 /**

@@ -17,32 +17,6 @@ const planIcons = {
 export function CreativePricing() {
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-20 min-w-0">
-      {/* Free Trial Banner */}
-      <div className="mb-12 rounded-2xl border-2 border-[#667eea]/50 bg-gradient-to-r from-[#667eea]/15 to-[#764ba2]/15 p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <span className="text-5xl">🎁</span>
-          <div>
-            <h3 className="text-xl font-bold text-white">7-Day Free Trial</h3>
-            <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-300">
-              <li>✓ 3 Video Credits</li>
-              <li>✓ 5 Genie Edits</li>
-              <li>✓ Unlimited AI Scripts</li>
-              <li>✓ 1 Custom Avatar</li>
-              <li>✓ Watermarked videos</li>
-              <li>✓ UGC Avatars</li>
-            </ul>
-          </div>
-        </div>
-        <Link href="/auth/signup" className="shrink-0">
-          <Button
-            size="lg"
-            className="bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white border-0 hover:opacity-90"
-          >
-            Start Free Trial →
-          </Button>
-        </Link>
-      </div>
-
       <div className="text-center space-y-6 mb-16">
         <div className="text-xl text-[#667eea] font-bold">Simple Pricing</div>
         <div className="relative">
@@ -64,10 +38,10 @@ export function CreativePricing() {
             <div
               key={key}
               className={cn(
-                "relative group transition-all duration-300",
-                index === 0 && "rotate-[-1deg]",
-                index === 1 && "rotate-[1deg]",
-                index === 2 && "rotate-[-2deg]"
+                "relative group transition-all duration-300 flex flex-col",
+                index === 0 && "md:rotate-[-1deg]",
+                index === 1 && "md:rotate-[1deg]",
+                index === 2 && "md:rotate-[-2deg]"
               )}
             >
               <div
@@ -84,7 +58,7 @@ export function CreativePricing() {
                 )}
               />
 
-              <div className="relative p-6">
+              <div className="relative p-6 flex flex-col flex-1 min-h-0">
                 {popular && "badge" in plan && plan.badge && (
                   <div className="absolute -top-2 -right-2 bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-3 py-1 rounded-full rotate-12 text-sm border-2 border-white">
                     {plan.badge}
@@ -114,7 +88,7 @@ export function CreativePricing() {
                   <span className="text-gray-400">/month</span>
                 </div>
 
-                <div className="space-y-3 mb-6">
+                <div className="space-y-3 mb-6 flex-1">
                   {plan.features.map((feature) => (
                     <div key={feature} className="flex items-start gap-3">
                       <div className="w-5 h-5 rounded-full border-2 border-[#667eea] flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -125,22 +99,30 @@ export function CreativePricing() {
                   ))}
                 </div>
 
-                <Link href="/auth/signup" className="block">
-                  <Button
-                    fullWidth
-                    className={cn(
-                      "w-full h-12 text-lg relative border-2 transition-all duration-300",
-                      "shadow-[4px_4px_0px_0px]",
-                      "hover:shadow-[6px_6px_0px_0px]",
-                      "hover:translate-x-[-2px] hover:translate-y-[-2px]",
-                      popular
-                        ? "bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white border-[#667eea] shadow-[#667eea] hover:opacity-95"
-                        : "bg-[#0a0a0a] text-white border-[#2a2a2a] shadow-[#2a2a2a] hover:bg-[#1a1a1a]"
-                    )}
+                <div className="space-y-3 mt-auto pt-2">
+                  <Link href={key === "enterprise" ? "/auth/signup?plan=enterprise" : `/auth/signup?plan=${key}`} className="block">
+                    <Button
+                      fullWidth
+                      className={cn(
+                        "w-full h-12 text-lg relative border-2 transition-all duration-300",
+                        "shadow-[4px_4px_0px_0px]",
+                        "hover:shadow-[6px_6px_0px_0px]",
+                        "hover:translate-x-[-2px] hover:translate-y-[-2px]",
+                        popular
+                          ? "bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white border-[#667eea] shadow-[#667eea] hover:opacity-95"
+                          : "bg-[#0a0a0a] text-white border-[#2a2a2a] shadow-[#2a2a2a] hover:bg-[#1a1a1a]"
+                      )}
+                    >
+                      {key === "enterprise" ? "Contact Sales" : "Get Started"}
+                    </Button>
+                  </Link>
+                  <Link
+                    href={`/auth/signup?plan=${key}`}
+                    className="block text-center text-sm font-medium text-[#667eea] hover:text-[#764ba2] transition-colors"
                   >
-                    {key === "enterprise" ? "Contact Sales" : "Get Started"}
-                  </Button>
-                </Link>
+                    Get a free trial
+                  </Link>
+                </div>
               </div>
             </div>
           );

@@ -10,6 +10,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        "bg-primary": "#FAF9FE",
+        "bg-secondary": "#F5F3FF",
+        purple: {
+          50: "#FAF5FF",
+          100: "#F3E8FF",
+          200: "#E9D5FF",
+          300: "#D8B4FE",
+          400: "#C084FC",
+          500: "#A855F7",
+          600: "#9333EA",
+          700: "#7E22CE",
+          800: "#6B21A8",
+          900: "#581C87",
+        },
+        pink: {
+          400: "#F472B6",
+          500: "#EC4899",
+          600: "#DB2777",
+        },
         background: "var(--background)",
         foreground: "var(--foreground)",
         primary: {
@@ -94,7 +113,7 @@ const config: Config = {
         light: "#F8FAFC",
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Inter", "sans-serif"],
       },
       animation: {
         "blob": "blob 7s infinite",
@@ -109,8 +128,13 @@ const config: Config = {
         "float": "float 3s ease-in-out infinite",
         "bounce-subtle": "bounce-subtle 2s ease-in-out infinite",
         "shimmer": "shimmer 1.5s infinite",
+        "scroll": "scroll 20s linear infinite",
       },
       keyframes: {
+        scroll: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
         blob: {
           "0%": { transform: "translate(0px, 0px) scale(1)" },
           "33%": { transform: "translate(30px, -50px) scale(1.1)" },

@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Section } from "@/components/ui/section"
 import { PLANS, type PlanKey } from "@/lib/plans"
 
+const PAID_PLAN_KEYS: PlanKey[] = ["creator", "professional", "enterprise"]
+
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
-  const planKeys: PlanKey[] = ["trial", "creator", "professional", "enterprise"]
 
   return (
     <div className="min-h-screen bg-light">
@@ -21,10 +22,10 @@ export default function PricingPage() {
         {/* Header */}
         <Section background="white" padding="lg">
           <div className="pricing-header text-center max-w-3xl mx-auto">
-            <h1 className="text-4xl sm:text-5xl font-bold text-dark mb-4">
+            <h1 className="text-4xl sm:text-5xl font-extrabold text-dark mb-6 tracking-tight">
               Simple, Transparent Pricing
             </h1>
-            <p className="subtitle text-xl text-gray-600 mb-2">
+            <p className="subtitle text-xl text-gray-600 mb-3 leading-relaxed">
               Start free for 7 days • Creator $39 • Pro $79 • Enterprise $199
             </p>
             <p className="no-commitment text-gray-500 text-sm">
@@ -33,35 +34,27 @@ export default function PricingPage() {
           </div>
         </Section>
 
-        {/* Main Pricing Cards */}
+        {/* Main Pricing Cards - 3 paid plans only, consistent height, aligned CTAs */}
         <Section background="light" padding="lg">
-          <div className="pricing-container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
-            {planKeys.map((key) => {
+          <div className="pricing-container grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 w-full min-w-0">
+            {PAID_PLAN_KEYS.map((key) => {
               const plan = PLANS[key]
-              const isTrial = key === "trial"
               const isPopular = "badge" in plan && plan.badge
               return (
                 <div
                   key={key}
-                  className={`pricing-card bg-white rounded-2xl border-2 p-6 relative overflow-hidden flex flex-col ${
+                  className={`pricing-card bg-white rounded-2xl border-2 p-6 sm:p-8 relative overflow-hidden flex flex-col min-h-[520px] sm:min-h-[560px] shadow-[0_4px_24px_rgba(0,0,0,0.06)] transition-all duration-300 ${
                     isPopular
-                      ? "border-primary shadow-xl shadow-primary/10"
-                      : isTrial
-                        ? "border-gray-200"
-                        : "border-gray-200 hover:border-primary/50"
+                      ? "border-primary shadow-[0_8px_32px_rgba(124,58,237,0.15)] ring-2 ring-primary/10"
+                      : "border-gray-200 hover:border-primary/50 hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
                   }`}
                 >
-                  {isTrial && (
-                    <div className="card-ribbon absolute top-0 right-0 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-                      FREE TRIAL
-                    </div>
-                  )}
                   {isPopular && "badge" in plan && plan.badge && (
                     <div className="card-ribbon absolute top-0 right-0 bg-gradient-to-r from-primary to-accent text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
                       {plan.badge}
                     </div>
                   )}
-                  <div className="card-header mb-4">
+                  <div className="card-header mb-5">
                     {"icon" in plan && plan.icon && (
                       <span className="text-3xl block mb-2">{plan.icon}</span>
                     )}
@@ -71,23 +64,11 @@ export default function PricingPage() {
                         ${plan.price}
                       </span>
                       <span className="price-period text-gray-500 text-sm">
-                        {isTrial ? " for 7 days" : "/month"}
+                        /month
                       </span>
                     </div>
                   </div>
-                  <Link
-                    href={isTrial ? "/auth/signup" : `/auth/signup?plan=${key}`}
-                    className="block mt-auto"
-                  >
-                    <Button
-                      fullWidth
-                      size="lg"
-                      className={isPopular ? "" : "bg-gray-800 hover:bg-gray-700"}
-                    >
-                      {isTrial ? "Start Free Trial" : key === "enterprise" ? "Contact Sales" : "Get Started"}
-                    </Button>
-                  </Link>
-                  <ul className="feature-list space-y-2 text-sm text-gray-600 mt-6">
+                  <ul className="feature-list flex-1 space-y-2 text-sm text-gray-600 min-h-0">
                     {plan.features.map((feature, idx) => (
                       <li key={idx} className="flex items-start gap-2">
                         <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -95,6 +76,35 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
+                  {/* Aligned CTA block: same vertical position across all cards */}
+                  <div className="mt-auto pt-6 flex flex-col gap-3">
+                    <Link href="/auth/signup" className="block w-full">
+                      <Button
+                        fullWidth
+                        variant="outline"
+                        size="lg"
+                        className="min-h-[48px] sm:min-h-[52px] rounded-2xl w-full border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-600"
+                      >
+                        Start Free Trial
+                      </Button>
+                    </Link>
+                    <Link
+                      href={key === "enterprise" ? "/auth/signup?plan=enterprise" : `/auth/signup?plan=${key}`}
+                      className="block w-full"
+                    >
+                      <Button
+                        fullWidth
+                        size="lg"
+                        className={`min-h-[48px] sm:min-h-[52px] rounded-2xl w-full ${
+                          isPopular
+                            ? "bg-gradient-to-br from-purple-600 via-violet-600 to-purple-700 shadow-[0_6px_20px_rgba(124,58,237,0.35)] hover:shadow-[0_8px_24px_rgba(124,58,237,0.4)] hover:from-purple-500 hover:via-violet-500 hover:to-purple-600 transition-all duration-200"
+                            : "bg-gray-800 hover:bg-gray-700"
+                        }`}
+                      >
+                        {key === "enterprise" ? "Contact Sales" : "Get Started"}
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               )
             })}
@@ -104,10 +114,10 @@ export default function PricingPage() {
         {/* FAQ Section */}
         <Section background="white" padding="lg">
           <div className="faq-section max-w-3xl mx-auto">
-            <h2 className="text-2xl font-bold text-dark text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-dark text-center mb-10 tracking-tight">
               Frequently Asked Questions
             </h2>
-            <div className="faq-grid space-y-4">
+            <div className="faq-grid space-y-3">
               {[
                 {
                   q: "How does the 7-day free trial work?",
@@ -115,7 +125,7 @@ export default function PricingPage() {
                 },
                 {
                   q: "How do video credits work?",
-                  a: "Each video costs 1–5 credits based on length: 0–60 sec = 1 credit, 61–120 sec = 2, 121–180 sec = 3, longer = 5. Shorter videos use fewer credits.",
+                  a: "Each video costs 1 to 5 credits based on length: 0 to 60 sec = 1 credit, 61 to 120 sec = 2, 121 to 180 sec = 3, longer = 5. Shorter videos use fewer credits.",
                 },
                 {
                   q: "What are Genie Edits?",
@@ -144,21 +154,21 @@ export default function PricingPage() {
               ].map((faq, idx) => (
                 <div
                   key={idx}
-                  className="border border-gray-200 rounded-xl overflow-hidden"
+                  className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)]"
                 >
                   <button
                     onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                    className="w-full flex items-center justify-between p-4 text-left font-medium text-dark hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center justify-between p-5 min-h-[56px] sm:min-h-[52px] text-left font-medium text-dark hover:bg-gray-50 transition-colors duration-200"
                   >
                     {faq.q}
                     <ChevronDown
-                      className={`h-5 w-5 text-gray-500 transition-transform ${
+                      className={`h-5 w-5 text-gray-500 shrink-0 ml-3 transition-transform duration-200 ${
                         openFaq === idx ? "rotate-180" : ""
                       }`}
                     />
                   </button>
                   {openFaq === idx && (
-                    <div className="px-4 pb-4 text-gray-600 text-sm">{faq.a}</div>
+                    <div className="px-5 pb-5 text-gray-600 text-sm leading-relaxed">{faq.a}</div>
                   )}
                 </div>
               ))}
@@ -192,17 +202,19 @@ export default function PricingPage() {
 
         {/* Final CTA */}
         <Section background="dark" padding="lg">
-          <div className="pricing-final-cta text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <div className="pricing-final-cta text-center max-w-2xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-6 tracking-tight">
               Ready to Create Viral Videos?
             </h2>
-            <p className="cta-description text-gray-300 mb-6 text-lg">
+            <p className="cta-description text-gray-300 mb-8 text-lg leading-relaxed">
               Start free with 3 video credits & 5 Genie edits. Upgrade to Creator ($39), Pro ($79), or Enterprise ($199).
             </p>
-            <Link href="/auth/signup">
-              <Button size="xl">Start Free Trial</Button>
+            <Link href="/auth/signup" className="inline-block w-full sm:w-auto">
+              <Button size="xl" className="w-full sm:w-auto min-h-[52px] px-8 rounded-2xl bg-gradient-to-br from-purple-600 via-violet-600 to-purple-700 shadow-[0_6px_20px_rgba(124,58,237,0.35)] hover:shadow-[0_8px_24px_rgba(124,58,237,0.4)] hover:from-purple-500 hover:via-violet-500 hover:to-purple-600 transition-all duration-200">
+                Start Free Trial
+              </Button>
             </Link>
-            <p className="cta-fine-print text-gray-400 text-sm mt-4">
+            <p className="cta-fine-print text-gray-400 text-sm mt-6">
               Cancel anytime • No hidden fees • Secure payment
             </p>
           </div>

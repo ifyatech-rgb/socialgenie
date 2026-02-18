@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import "@/styles/design-system.css";
@@ -7,13 +7,23 @@ import { Toaster } from "sonner";
 import { RouteChangeProgress } from "@/components/route-change-progress";
 import { PreconnectLinks } from "@/components/preconnect-links";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-  ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
-  : process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3000";
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+};
+
+const baseUrl =
+  (process.env.NEXT_PUBLIC_APP_URL?.trim() && process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")) ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+  "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
@@ -22,9 +32,9 @@ export const metadata: Metadata = {
   keywords: "AI video generator, content creation, social media automation, video cloning, voice cloning, viral content, competitor analysis",
   authors: [{ name: "SocialGenie" }],
   icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    icon: "/logos/logo.png",
+    shortcut: "/logos/logo.png",
+    apple: "/logos/logo.png",
   },
   openGraph: {
     title: "SocialGenie - Your Partner to Go Viral",
@@ -45,7 +55,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="overflow-x-hidden">
+    <html lang="en" className={`${inter.variable} overflow-x-hidden`}>
       <body className={`${inter.className} overflow-x-hidden min-w-0`}>
         <Providers>
           <PreconnectLinks />

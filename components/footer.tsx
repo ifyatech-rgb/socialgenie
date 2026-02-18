@@ -61,8 +61,8 @@ export function Footer() {
       {/* Gradient border */}
       <div className="h-1 bg-gradient-to-r from-primary via-secondary to-accent" />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 sm:gap-8 lg:gap-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 py-20 lg:py-24">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8 lg:gap-12">
           {/* Brand Column */}
           <div className="col-span-2">
             <div className="mb-6">
@@ -78,7 +78,7 @@ export function Footer() {
                 <a
                   key={social.label}
                   href={social.href}
-                  className="w-10 h-10 rounded-lg bg-gray-800 hover:bg-primary flex items-center justify-center text-gray-400 hover:text-white transition-all"
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-gray-800 hover:bg-primary flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200"
                   aria-label={social.label}
                 >
                   <social.icon className="h-5 w-5" />
@@ -145,7 +145,7 @@ export function Footer() {
         </div>
 
         {/* Newsletter */}
-        <div className="mt-12 pt-8 border-t border-gray-800">
+        <div className="mt-16 pt-10 border-t border-gray-800">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
               <h4 className="font-semibold text-white mb-1">Stay in the loop</h4>
@@ -157,10 +157,10 @@ export function Footer() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                className="flex-1 w-full min-h-12 lg:w-64 px-4 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary transition-colors"
+                className="flex-1 w-full min-h-[48px] sm:min-h-[52px] lg:w-64 px-5 rounded-2xl bg-gray-800 border border-gray-700 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary transition-colors duration-200"
                 required
               />
-              <Button type="submit" loading={loading} icon={<ArrowRight className="h-4 w-4" />} iconPosition="right" className="w-full sm:w-auto min-h-12">
+              <Button type="submit" loading={loading} icon={<ArrowRight className="h-4 w-4" />} iconPosition="right" className="w-full sm:w-auto min-h-[48px] sm:min-h-[52px] rounded-2xl">
                 Subscribe
               </Button>
             </form>
@@ -168,7 +168,7 @@ export function Footer() {
         </div>
 
         {/* Copyright */}
-        <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="mt-16 pt-10 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-gray-500 text-sm">
             © {new Date().getFullYear()} SocialGenie. All rights reserved.
           </p>

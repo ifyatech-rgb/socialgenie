@@ -15,13 +15,23 @@ export interface HeyGenAvatar {
   gender?: string;
   avatar_style?: string;
   avatar_type?: string;
+  /** v2 API may return "type" (e.g. ugc, lifestyle, community) */
+  type?: string | null;
   is_public?: boolean;
   is_paid?: boolean;
+  premium?: boolean;
   category?: string;
-  tags?: string[];
+  tags?: string[] | null;
   description?: string;
   resolution?: { width?: number; height?: number };
   dimension?: { width?: number; height?: number };
+}
+
+/** Talking photo from HeyGen v2 /avatars response (photo avatars / UGC-style) */
+export interface HeyGenTalkingPhoto {
+  talking_photo_id: string;
+  talking_photo_name?: string;
+  preview_image_url?: string;
 }
 
 /** Formatted avatar returned by getAvatars (category-filtered, with native resolution) */
@@ -40,6 +50,8 @@ export interface FormattedHeyGenAvatar {
   aspectRatio: string;
   width: number;
   height: number;
+  /** Normalized type for dashboard: public (stock), ugc, or from talking_photos */
+  avatarType?: "public" | "ugc";
 }
 
 export interface HeyGenVoice {
@@ -151,7 +163,7 @@ class HeyGenClient {
     if (type.includes("community")) {
       return { width: 1920, height: 1080, aspectRatio: "16:9" };
     }
-    // Avatars with "lounge", "office", "sofa", "desk", "room" are often full-scene/landscape — use 16:9 so video matches avatar (not forced reel).
+    // Avatars with "lounge", "office", "sofa", "desk", "room" are often full-scene/landscape; use 16:9 so video matches avatar (not forced reel).
     const looksLandscape = /lounge|office|sofa|desk|room/.test(name);
     if (looksLandscape) {
       return { width: 1920, height: 1080, aspectRatio: "16:9" };
@@ -167,32 +179,48 @@ class HeyGenClient {
     return { width: 1080, height: 1920, aspectRatio: "9:16" };
   }
 
-  /** Get avatars filtered by category (Lifestyle, UGC, Community) and background quality; includes native resolution. */
+  /** Get avatars filtered by category (Lifestyle, UGC, Community) and background quality; includes native resolution and talking_photos (UGC-style). */
   async getAvatars(options?: { freeOnly?: boolean }): Promise<FormattedHeyGenAvatar[]> {
     const filterFreeOnly = options?.freeOnly ?? true;
     console.log("[HeyGen] Fetching avatars... filter free only:", filterFreeOnly);
 
     try {
-      const data = await this.makeRequest<{ data?: { avatars?: HeyGenAvatar[] } }>("/avatars");
+      const data = await this.makeRequest<{
+        data?: {
+          avatars?: HeyGenAvatar[];
+          talking_photos?: HeyGenTalkingPhoto[];
+        };
+      }>("/avatars");
       const allAvatars = data?.data?.avatars ?? [];
-      console.log("[HeyGen] Total avatars from API:", allAvatars.length);
+      const talkingPhotos = data?.data?.talking_photos ?? [];
 
-      // HeyGen has 4 types: Professional, Lifestyle, UGC, Community. We only sync Lifestyle, UGC, Community.
+      // Temporary logging: raw HeyGen response and counts per type
+      const typeCounts: Record<string, number> = {};
+      allAvatars.forEach((a) => {
+        const t = (a.type ?? a.avatar_type ?? a.category ?? "unknown").toString().toLowerCase();
+        typeCounts[t] = (typeCounts[t] ?? 0) + 1;
+      });
+      console.log("[HeyGen] Raw API: avatars=", allAvatars.length, "talking_photos=", talkingPhotos.length, "types=", typeCounts);
+
+      // HeyGen has 4 types: Professional, Lifestyle, UGC, Community. We sync Lifestyle, UGC, Community. Also respect API "type" field.
       const ALLOWED_CATEGORIES = ["lifestyle", "ugc", "community"];
       const EXCLUDED_CATEGORIES = ["professional", "studio", "business", "education", "corporate", "premium"];
 
       let categoryFiltered = allAvatars.filter((avatar) => {
         const category = (avatar.category ?? "").toLowerCase();
         const tags = (avatar.tags ?? []).map((t) => String(t).toLowerCase());
-        const avatarType = (avatar.avatar_type ?? "").toLowerCase();
+        const avatarTypeRaw = (avatar.avatar_type ?? avatar.type ?? "").toString().toLowerCase();
         const name = (avatar.avatar_name ?? "").toLowerCase();
-        const hasAnyCategoryInfo = category || avatarType || tags.length > 0;
+        const hasAnyCategoryInfo = category || avatarTypeRaw || tags.length > 0;
+
+        // Explicit UGC type from API must be included
+        if (avatarTypeRaw.includes("ugc") || category.includes("ugc")) return true;
 
         const matchesExcluded = EXCLUDED_CATEGORIES.some(
           (excl) =>
             category.includes(excl) ||
             tags.some((tag) => tag.includes(excl)) ||
-            avatarType.includes(excl) ||
+            avatarTypeRaw.includes(excl) ||
             name.includes(excl)
         );
         if (matchesExcluded) return false;
@@ -201,7 +229,7 @@ class HeyGenClient {
           (allowed) =>
             category.includes(allowed) ||
             tags.some((tag) => tag.includes(allowed)) ||
-            avatarType.includes(allowed) ||
+            avatarTypeRaw.includes(allowed) ||
             name.includes(allowed)
         );
         if (matchesAllowed) return true;
@@ -212,7 +240,7 @@ class HeyGenClient {
       let avatarsToShow = categoryFiltered;
       if (filterFreeOnly) {
         avatarsToShow = categoryFiltered.filter(
-          (a) => a.is_public === true || !a.is_paid
+          (a) => a.is_public === true || !(a.is_paid ?? a.premium)
         );
         try {
           const { HEYGEN_FREE_AVATAR_IDS } = await import("@/config/heygen-free-avatars");
@@ -276,6 +304,9 @@ class HeyGenClient {
           const nativeResolution = this.getAvatarNativeResolution(avatar);
           const preview = avatar.preview_image_url || avatar.preview_video_url;
           if (!preview) return null;
+          const category = (avatar.category ?? "lifestyle").toLowerCase();
+          const apiType = (avatar.avatar_type ?? avatar.type ?? "").toString().toLowerCase();
+          const isUgc = apiType.includes("ugc") || category.includes("ugc");
           return {
             id: avatar.avatar_id,
             name: avatar.avatar_name ?? "Unnamed Avatar",
@@ -284,19 +315,49 @@ class HeyGenClient {
             imagePreview: avatar.preview_image_url,
             gender: avatar.gender ?? "Unknown",
             style: avatar.avatar_style ?? "normal",
-            category: (avatar.category ?? "lifestyle").toLowerCase(),
-            isPaid: avatar.is_paid ?? false,
+            category: isUgc ? "ugc" : category,
+            isPaid: avatar.is_paid ?? avatar.premium ?? false,
             isPublic: avatar.is_public ?? false,
             nativeResolution,
             aspectRatio: nativeResolution.aspectRatio,
             width: nativeResolution.width,
             height: nativeResolution.height,
+            avatarType: isUgc ? "ugc" : "public",
           };
         })
         .filter((a) => a !== null) as FormattedHeyGenAvatar[];
 
-      console.log("[HeyGen] Formatted avatars (category + background filtered):", formatted.length);
-      return formatted;
+      // Append talking_photos as UGC-style avatars (photo avatars from HeyGen)
+      const ugcFromTalkingPhotos: FormattedHeyGenAvatar[] = talkingPhotos
+        .filter((tp) => tp.talking_photo_id && (tp.preview_image_url || tp.talking_photo_name))
+        .map((tp) => ({
+          id: tp.talking_photo_id,
+          name: tp.talking_photo_name ?? "Talking Photo",
+          preview: tp.preview_image_url,
+          videoPreview: undefined,
+          imagePreview: tp.preview_image_url,
+          gender: "Unknown",
+          style: "normal",
+          category: "ugc",
+          isPaid: false,
+          isPublic: true,
+          nativeResolution: { width: 1080, height: 1920, aspectRatio: "9:16" },
+          aspectRatio: "9:16",
+          width: 1080,
+          height: 1920,
+          avatarType: "ugc" as const,
+        }));
+
+      const combined = [...formatted, ...ugcFromTalkingPhotos];
+      console.log(
+        "[HeyGen] Formatted: public/stock=",
+        formatted.length,
+        "talking_photos(ugc)=",
+        ugcFromTalkingPhotos.length,
+        "total=",
+        combined.length
+      );
+      return combined;
     } catch (error) {
       console.error("[HeyGen] Failed to fetch avatars:", error);
       return [];
@@ -726,6 +787,54 @@ class HeyGenClient {
       return { success: true, avatars: customAvatars };
     } catch (error) {
       console.error("[HeyGen] Failed to fetch custom avatars:", error);
+      return {
+        success: true,
+        avatars: [],
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /** List UGC avatars from HeyGen (if endpoint exists). Returns same shape as getCustomAvatars for merging. */
+  async getUgcAvatars(): Promise<{
+    success: boolean;
+    avatars: Array<{
+      id: string;
+      name: string;
+      preview?: string;
+      videoPreview?: string;
+      status?: string;
+      isUgc: boolean;
+    }>;
+    error?: string;
+  }> {
+    try {
+      console.log("[HeyGen] Fetching UGC avatars (list.get?type=ugc)...");
+      const data = await this.makeRequest<{
+        data?: {
+          avatars?: Array<{
+            avatar_id?: string;
+            avatar_name?: string;
+            preview_image_url?: string;
+            preview_video_url?: string;
+            status?: string;
+          }>;
+        };
+      }>("/avatar/list.get?type=ugc");
+      const list = data?.data?.avatars ?? [];
+      const ugcAvatars = list.map((a) => ({
+        id: a.avatar_id ?? "",
+        name: a.avatar_name ?? a.avatar_id ?? "",
+        preview: a.preview_image_url,
+        videoPreview: a.preview_video_url,
+        status: a.status,
+        isUgc: true,
+      }));
+      console.log("[HeyGen] Found", ugcAvatars.length, "UGC avatars from list.get?type=ugc");
+      return { success: true, avatars: ugcAvatars };
+    } catch (error) {
+      // Endpoint may not exist or return 404; do not fail the whole flow
+      console.log("[HeyGen] UGC list endpoint not available or error:", error instanceof Error ? error.message : String(error));
       return {
         success: true,
         avatars: [],

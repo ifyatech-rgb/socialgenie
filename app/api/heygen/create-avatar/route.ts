@@ -182,6 +182,18 @@ export async function POST(request: NextRequest) {
     const newUsed = used + 1;
     if (result.avatarId) avatarIds.push(result.avatarId);
 
+    if (result.avatarId) {
+      await prisma.avatar.create({
+        data: {
+          userId: user.id,
+          name: avatarName,
+          type: avatarType,
+          status: result.status ?? "processing",
+          heygenAvatarId: result.avatarId,
+        },
+      });
+    }
+
     await prisma.user.update({
       where: { id: user.id },
       data: {

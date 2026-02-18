@@ -7,11 +7,17 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff, X, CreditCard } from "lucide-react"
 import { toast } from "sonner"
 import { LogoIcon } from "@/components/logo"
+import { PLANS, type PlanKey } from "@/lib/plans"
+
+const PAID_PLANS: PlanKey[] = ["creator", "professional", "enterprise"]
 
 export default function SignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const prefilledEmail = searchParams?.get("email")?.trim() ?? ""
+  const planParam = searchParams?.get("plan")?.toLowerCase()
+  const selectedPlan: PlanKey = PAID_PLANS.includes(planParam as PlanKey) ? (planParam as PlanKey) : "creator"
+  const planConfig = PLANS[selectedPlan]
   const [isLogin, setIsLogin] = useState(true)
   const [noAccountFound, setNoAccountFound] = useState(false)
 
@@ -177,7 +183,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-6 overflow-x-hidden">
+    <div className="min-h-screen relative flex items-center justify-center p-6 sm:p-8 overflow-x-hidden">
       {/* Background with blur effect */}
       <div className="fixed inset-0 z-0">
         {/* Gradient background with animated blobs */}
@@ -199,18 +205,18 @@ export default function SignInPage() {
 
       {/* Modal Card */}
       <div className="relative z-10 w-full max-w-md mx-4 sm:mx-0">
-        <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
-          {/* Close button */}
+        <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.4)] overflow-hidden">
+          {/* Close button - 48px tap target */}
           <Link 
             href="/"
-            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-800"
+            className="absolute top-4 right-4 p-3 min-h-[48px] min-w-[48px] flex items-center justify-center text-gray-400 hover:text-white transition-colors duration-200 rounded-xl hover:bg-gray-800"
           >
             <X className="h-5 w-5" />
           </Link>
 
-          <div className="p-6 sm:p-8">
+          <div className="p-8 sm:p-10">
             {/* Header */}
-            <div className="text-center mb-8">
+            <div className="text-center mb-10">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <LogoIcon size={48} />
               </div>
@@ -239,7 +245,7 @@ export default function SignInPage() {
             {/* Google Sign In */}
             <button
               onClick={handleGoogleSignIn}
-              className="w-full min-h-12 flex items-center justify-center gap-3 px-4 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-white font-medium transition-colors mb-6"
+              className="w-full min-h-[48px] sm:min-h-[52px] flex items-center justify-center gap-3 px-4 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-2xl text-white font-medium transition-colors duration-200 mb-6"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -276,7 +282,7 @@ export default function SignInPage() {
                       name="firstName"
                       value={formData.firstName}
                       onChange={handleChange}
-                      className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                      className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200"
                       required={!isLogin}
                     />
                   </div>
@@ -289,7 +295,7 @@ export default function SignInPage() {
                       name="lastName"
                       value={formData.lastName}
                       onChange={handleChange}
-                      className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                      className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200"
                       required={!isLogin}
                     />
                   </div>
@@ -307,7 +313,7 @@ export default function SignInPage() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="name@example.com"
-                  className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                  className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200"
                   required
                 />
               </div>
@@ -324,13 +330,13 @@ export default function SignInPage() {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="Enter Password"
-                    className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors pr-12"
+                    className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200 pr-12"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white transition-colors duration-200 rounded-lg"
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
@@ -350,13 +356,13 @@ export default function SignInPage() {
                       value={formData.confirmPassword}
                       onChange={handleChange}
                       placeholder="Enter Password"
-                      className="w-full min-h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors pr-12"
+                      className="w-full min-h-[48px] px-4 py-3 bg-gray-800 border border-gray-700 rounded-2xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200 pr-12"
                       required={!isLogin}
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-white transition-colors duration-200 rounded-lg"
                     >
                       {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
@@ -407,8 +413,8 @@ export default function SignInPage() {
                 disabled={loading}
                 className={
                   isLogin
-                    ? "w-full min-h-12 py-3.5 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25 min-w-0"
-                    : "signup-trial-button w-full min-h-12 sm:min-h-14 py-4 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-base sm:text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30 min-w-0"
+                    ? "w-full min-h-[52px] py-3.5 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white font-semibold rounded-2xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25 min-w-0 active:scale-[0.98]"
+                    : "signup-trial-button w-full min-h-[52px] sm:min-h-[56px] py-4 px-6 rounded-2xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-bold text-base sm:text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/30 min-w-0 active:scale-[0.98]"
                 }
               >
                 {loading ? (
@@ -428,7 +434,7 @@ export default function SignInPage() {
                       <span>Start 7-Day Free Trial</span>
                     </div>
                     <small className="subtext text-white/90 text-sm font-normal">
-                      Then $19/month • Cancel anytime
+                      Then ${planConfig.price}/month • Cancel anytime
                     </small>
                   </>
                 )}
