@@ -272,3 +272,12 @@ model Avatar {
   @@index([heygenAvatarId])
   @@schema("public")
 }
+
+model Waitlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@schema("public")
+}
