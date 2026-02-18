@@ -7,8 +7,8 @@ import { hash, compare } from "bcryptjs";
 import { trackUserActivity } from "@/lib/tracking";
 import { syncUserToSupabase } from "@/lib/supabase-sync";
 
+// trustHost: set AUTH_TRUST_HOST=true in Vercel if needed for proxy
 const authOptions: NextAuthOptions = {
-  trustHost: true,
   providers: [
     // Credentials provider (email/password)
     CredentialsProvider({

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import Navbar from "@/components/navbar";
+import Navbar from "@/components/Navbar";
 import { Logo } from "@/components/logo";
 
 export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {

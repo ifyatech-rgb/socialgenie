@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Check, ChevronDown } from "lucide-react"
-import Navbar from "@/components/navbar"
+import Navbar from "@/components/Navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Section } from "@/components/ui/section"
