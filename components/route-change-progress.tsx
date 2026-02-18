@@ -11,10 +11,11 @@ export function RouteChangeProgress() {
     let NProgress: { start: () => void; done: () => void; configure: (o: { showSpinner: boolean }) => void } | null = null;
     try {
       NProgress = require("nprogress");
-      NProgress.configure({ showSpinner: false });
     } catch {
       return;
     }
+    if (!NProgress) return;
+    NProgress.configure({ showSpinner: false });
 
     const start = () => {
       if (doneTimerRef.current) {
