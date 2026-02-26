@@ -48,22 +48,9 @@ export function ConsentStep({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Your name (for the consent script and verification)
-        </label>
-        <input
-          type="text"
-          value={userName}
-          onChange={(e) => onUserNameChange(e.target.value)}
-          placeholder="e.g. Jane Smith"
-          className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          aria-label="Your name for consent script"
-        />
-      </div>
-
       <ConsentRecording
         userName={userName.trim() || "Your Name"}
+        onUserNameChange={onUserNameChange}
         onComplete={handleComplete}
         onBack={onBack}
       />

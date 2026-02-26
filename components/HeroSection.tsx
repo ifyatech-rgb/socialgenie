@@ -10,25 +10,27 @@ export default function HeroSection() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
-  /** Submit email to waitlist API then redirect to signup - KEEP existing backend behavior */
-  const handleSubmit = async (e: React.FormEvent) => {
+  /** Try for Free: go to signup (create account), then onboarding → pricing → dashboard */
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) return;
     setLoading(true);
-    try {
-      await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
-      });
-    } catch {
-      // Best-effort: still redirect even if waitlist fails
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("signupEmail", trimmed);
     }
-    router.push("/auth/signup");
+    fetch("/api/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: trimmed }),
+    }).catch(() => {});
+    router.push(`/auth/signup?email=${encodeURIComponent(trimmed)}`);
+    setLoading(false);
   };
 
-  /** Existing OAuth flow - KEEP */
+  /** Sign up with Google: OAuth then redirect-decide → onboarding (new) or dashboard (already completed) */
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/dashboard" });
+    signIn("google", { callbackUrl: "/auth/redirect-decide" });
   };
 
   return (
@@ -179,6 +181,19 @@ export default function HeroSection() {
               </svg>
               <span>Join with Google</span>
             </button>
+
+            {/* Trial benefits */}
+            <div className="flex flex-wrap gap-3 sm:gap-4 justify-center mt-6 sm:mt-8">
+              <span className="inline-flex items-center gap-1.5 bg-white px-4 py-2 rounded-full text-sm font-semibold text-gray-700 shadow-sm border border-gray-100">
+                🎁 5 FREE Credits
+              </span>
+              <span className="inline-flex items-center gap-1.5 bg-white px-4 py-2 rounded-full text-sm font-semibold text-gray-700 shadow-sm border border-gray-100">
+                ✨ 5 Genie Edits
+              </span>
+              <span className="inline-flex items-center gap-1.5 bg-white px-4 py-2 rounded-full text-sm font-semibold text-gray-700 shadow-sm border border-gray-100">
+                ⏰ 7 Days Free
+              </span>
+            </div>
           </div>
         </div>
       </div>

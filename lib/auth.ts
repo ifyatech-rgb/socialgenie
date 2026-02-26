@@ -7,8 +7,9 @@ import { hash, compare } from "bcryptjs";
 import { trackUserActivity } from "@/lib/tracking";
 import { syncUserToSupabase } from "@/lib/supabase-sync";
 
-// trustHost: set AUTH_TRUST_HOST=true in Vercel if needed for proxy
-const authOptions: NextAuthOptions = {
+const authOptions = {
+  secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+  basePath: "/api/auth",
   providers: [
     // Credentials provider (email/password)
     CredentialsProvider({
@@ -28,7 +29,7 @@ const authOptions: NextAuthOptions = {
         const userName = credentials.name?.trim() || credentials.email.split("@")[0];
 
         try {
-          let user = await prisma.user.findUnique({
+          let user = await prisma.users.findUnique({
             where: { email },
           });
 
@@ -38,21 +39,20 @@ const authOptions: NextAuthOptions = {
             }
             try {
               const hashedPassword = await hash(credentials.password, 10);
-              user = await prisma.user.create({
+              user = await prisma.users.create({
                 data: {
                   email,
                   name: userName,
                   image: null,
-                  emailVerified: null,
-                  password: hashedPassword,
+                  email_verified: false,
+                  password_hash: hashedPassword,
                   niche: null,
-                  platforms: null,
                   credits: 10,
-                  plan: 'free',
+                  plan: "trial",
                   payment_status: "pending",
                   stripe_customer_id: null,
                   stripe_subscription_id: null,
-                  subscription_status: null,
+                  onboarding_completed: false,
                 },
               });
               console.log("User created successfully:", user.id);
@@ -73,8 +73,8 @@ const authOptions: NextAuthOptions = {
             if (!user) {
               throw new Error("No account found. Please sign up first.");
             }
-            if (user.password) {
-              const valid = await compare(credentials.password, user.password);
+            if (user.password_hash) {
+              const valid = await compare(credentials.password, user.password_hash);
               if (!valid) {
                 throw new Error("Incorrect password. Please try again.");
               }
@@ -129,31 +129,30 @@ const authOptions: NextAuthOptions = {
       if (account?.provider === "google" && user?.email) {
         try {
           const email = user.email.trim().toLowerCase();
-          let prismaUser = await prisma.user.findUnique({ where: { email } });
+          let prismaUser = await prisma.users.findUnique({ where: { email } });
           if (!prismaUser) {
-            prismaUser = await prisma.user.create({
+            prismaUser = await prisma.users.create({
               data: {
                 email,
                 name: user.name ?? email.split("@")[0],
-                image: user.image,
-                password: null,
-                emailVerified: new Date(),
+                image: user.image ?? null,
+                email_verified: true,
                 niche: null,
-                platforms: null,
                 credits: 10,
-                plan: 'free',
-                payment_status: 'pending',
+                plan: "trial",
+                payment_status: "pending",
                 stripe_customer_id: null,
                 stripe_subscription_id: null,
-                subscription_status: null,
+                onboarding_completed: false,
               },
             });
-            console.log("Google user created in Prisma:", prismaUser.id);
+            console.log("✨ New Google user created, redirecting to onboarding:", prismaUser.id);
           } else {
-            await prisma.user.update({
+            await prisma.users.update({
               where: { id: prismaUser.id },
               data: { name: user.name ?? prismaUser.name, image: user.image ?? prismaUser.image },
             });
+            console.log("✅ Existing Google user, redirecting to dashboard:", prismaUser.id);
           }
           await syncUserToSupabase({
             id: prismaUser.id,
@@ -171,45 +170,62 @@ const authOptions: NextAuthOptions = {
     },
     async redirect({ url, baseUrl }) {
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      if (new URL(url).origin === baseUrl) return url;
-      return `${baseUrl}/dashboard`;
+      try {
+        const parsed = new URL(url);
+        if (parsed.origin !== baseUrl) return `${baseUrl}/dashboard`;
+        return url;
+      } catch {
+        return `${baseUrl}/dashboard`;
+      }
     },
     async session({ session, user, token }) {
-      if (session.user) {
-        session.user.id = (user?.id || token?.sub) as string;
-        if (token?.email) session.user.email = token.email as string;
-        if (token?.name !== undefined) session.user.name = token.name as string | null;
+      try {
+        if (session?.user) {
+          session.user.id = (user?.id ?? token?.sub ?? "") as string;
+          if (token?.email != null) session.user.email = token.email as string;
+          if (token?.name !== undefined) session.user.name = token.name as string | null;
+        }
+        return session ?? { user: {}, expires: "" };
+      } catch {
+        return { user: {}, expires: "" };
       }
-      return session;
     },
     async jwt({ token, user, account }) {
-      if (user) {
-        // For Google OAuth, use our Prisma user id (look up by email)
-        if (account?.provider === "google" && user.email) {
-          try {
-            const prismaUser = await prisma.user.findUnique({
-              where: { email: user.email.trim().toLowerCase() },
-              select: { id: true },
-            });
-            if (prismaUser) {
-              token.sub = prismaUser.id;
-              token.id = prismaUser.id;
-            } else {
+      try {
+        if (user) {
+          if (account?.provider === "google" && user.email) {
+            try {
+              const prismaUser = await prisma.users.findUnique({
+                where: { email: user.email.trim().toLowerCase() },
+                select: { id: true, onboarding_completed: true },
+              });
+              if (prismaUser) {
+                token.sub = prismaUser.id;
+                token.id = prismaUser.id;
+                token.hasCompletedOnboarding = prismaUser.onboarding_completed ?? false;
+              } else {
+                token.sub = user.id;
+                token.id = user.id;
+                token.hasCompletedOnboarding = false;
+              }
+            } catch {
               token.sub = user.id;
               token.id = user.id;
+              token.hasCompletedOnboarding = false;
             }
-          } catch {
+          } else {
             token.sub = user.id;
             token.id = user.id;
+            token.email = user.email;
+            token.name = user.name;
           }
-        } else {
-          token.sub = user.id;
-          token.id = user.id;
+          token.email = token.email ?? user.email;
+          token.name = token.name ?? user.name;
         }
-        token.email = user.email;
-        token.name = user.name;
+        return token;
+      } catch {
+        return token ?? {};
       }
-      return token;
     },
   },
   session: {
@@ -220,7 +236,7 @@ const authOptions: NextAuthOptions = {
       // Backup: ensure we don't miss any sync
     },
   },
-};
+} as NextAuthOptions;
 
 export { authOptions };
 
@@ -339,14 +355,14 @@ export async function getAuthUserEmail(request: Request): Promise<string | null>
   const session = await getSessionForRequest(request);
   let email = session?.user?.email ?? null;
   if (session?.user?.id && !email) {
-    const u = await prisma.user.findUnique({ where: { id: session.user.id }, select: { email: true } });
+    const u = await prisma.users.findUnique({ where: { id: session.user.id }, select: { email: true } });
     email = u?.email ?? null;
   }
   if (email) return email;
   if (process.env.NODE_ENV === "development") {
     const devEmail = request.headers.get("x-dev-email")?.trim();
     if (devEmail) {
-      const u = await prisma.user.findUnique({ where: { email: devEmail }, select: { email: true } });
+      const u = await prisma.users.findUnique({ where: { email: devEmail }, select: { email: true } });
       if (u) return u.email;
     }
   }

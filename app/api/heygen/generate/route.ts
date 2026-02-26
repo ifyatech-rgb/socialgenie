@@ -6,14 +6,16 @@ import { checkAvatarAccess } from "@/lib/checkAvatarAccess";
 import { cleanScript } from "@/lib/scriptCleaner";
 import { stripSectionHeadersForTTS } from "@/lib/scriptFormatter";
 import { trackCreditsUsage, trackVideoGeneration } from "@/lib/tracking";
-import { calculateVideoCreditCost, canCreateVideo } from "@/lib/plans";
+import { syncGeneratedVideoToSupabase, syncScriptToSupabase } from "@/lib/supabase-sync";
+import { calculateVideoCreditCost, canCreateVideo, getPlan } from "@/lib/plans";
+import { validateVideoLength } from "@/lib/videoLimits";
 
 export const dynamic = "force-dynamic";
 
-/** Estimate duration in seconds from script word count (~2.5 words per second). */
+/** Estimate duration in seconds from script word count (~2.5 words per second). Any length up to 1h. */
 function estimateDurationSeconds(script: string): number {
   const words = script.trim().split(/\s+/).filter(Boolean).length;
-  return Math.min(300, Math.max(15, Math.ceil(words / 2.5)));
+  return Math.min(3600, Math.max(15, Math.ceil(words / 2.5)));
 }
 
 export async function POST(request: NextRequest) {
@@ -22,13 +24,14 @@ export async function POST(request: NextRequest) {
     if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const emailNormalized = email.trim().toLowerCase();
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: emailNormalized },
       select: {
         id: true,
         credits: true,
-        videoCredits: true,
-        videoCreditsUsed: true,
+        plan: true,
+        video_credits: true,
+        video_credits_used: true,
       },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -47,8 +50,24 @@ export async function POST(request: NextRequest) {
 
     const cleanedScript = stripSectionHeadersForTTS(cleanScript(script.trim()));
     const estimatedDuration = estimateDurationSeconds(cleanedScript);
+    const planConfig = getPlan(user.plan ?? null);
+    const maxVideoLength = planConfig.limits.maxVideoLength;
+    if (maxVideoLength != null) {
+      const lengthCheck = validateVideoLength(estimatedDuration, user.plan ?? "trial");
+      if (!lengthCheck.valid) {
+        return NextResponse.json(
+          {
+            error: "video_too_long",
+            message: lengthCheck.message,
+            maxSeconds: maxVideoLength,
+            upgradeRequired: true,
+          },
+          { status: 400 }
+        );
+      }
+    }
     const creditCost = calculateVideoCreditCost(estimatedDuration);
-    const videoCreditsAvailable = user.videoCredits ?? user.credits ?? 0;
+    const videoCreditsAvailable = user.video_credits ?? user.credits ?? 0;
     if (!canCreateVideo({ videoCredits: videoCreditsAvailable }, estimatedDuration)) {
       return NextResponse.json(
         {
@@ -94,15 +113,16 @@ export async function POST(request: NextRequest) {
       dimension,
       useNativeResolution: true,
       background: { type: "color", value: "#000000" },
+      trialWatermark: planConfig.hasWatermark === true,
     });
 
     const newVideoCredits = Math.max(0, videoCreditsAvailable - creditCost);
     const newCreditsLegacy = Math.max(0, (user.credits ?? 0) - creditCost);
-    await prisma.user.update({
+    await prisma.users.update({
       where: { id: user.id },
       data: {
-        videoCredits: newVideoCredits,
-        videoCreditsUsed: (user.videoCreditsUsed ?? 0) + creditCost,
+        video_credits: newVideoCredits,
+        video_credits_used: (user.video_credits_used ?? 0) + creditCost,
         credits: newCreditsLegacy,
       },
     });
@@ -125,50 +145,43 @@ export async function POST(request: NextRequest) {
 
     let projectId: string | null = null;
     if (scriptId?.trim()) {
-      const scriptRecord = await prisma.script.findFirst({
-        where: { id: scriptId.trim(), userId: user.id },
+      const scriptRecord = await prisma.scripts.findFirst({
+        where: { id: scriptId.trim(), user_id: user.id },
         select: {
           id: true,
           topic: true,
           platform: true,
-          content: true,
-          tone: true,
-          length: true,
-          projectName: true,
+          script_text: true,
+          content_style: true,
+          estimated_duration: true,
         },
       });
       if (scriptRecord) {
         try {
-          const gv = await prisma.generatedVideo.create({
+          await prisma.scripts.update({
+            where: { id: scriptRecord.id },
             data: {
-              userId: user.id,
-              scriptId: scriptRecord.id,
-              generatedVideoId: videoResult.videoId,
-              videoProvider: "heygen",
-              videoStatus: "processing",
-              videoProgress: 10,
-              projectName: scriptRecord.projectName ?? scriptRecord.topic,
+              generated_video_id: videoResult.videoId,
+              video_status: "processing",
+              video_provider: "heygen",
             },
           });
-          projectId = gv.id;
+          projectId = scriptRecord.id;
+          syncScriptToSupabase({
+            id: scriptRecord.id,
+            user_id: user.id,
+            topic: scriptRecord.topic,
+            platform: scriptRecord.platform,
+            content: scriptRecord.script_text,
+            tone: scriptRecord.content_style ?? undefined,
+            length: scriptRecord.estimated_duration ?? undefined,
+            status: "processing",
+            generated_video_id: videoResult.videoId,
+            video_provider: "heygen",
+            video_status: "processing",
+          }).catch(() => {});
         } catch {
-          const newScript = await prisma.script.create({
-            data: {
-              userId: user.id,
-              topic: scriptRecord.topic,
-              platform: scriptRecord.platform,
-              content: scriptRecord.content,
-              tone: scriptRecord.tone,
-              length: scriptRecord.length,
-              status: "video_processing",
-              generatedVideoId: videoResult.videoId,
-              videoProvider: "heygen",
-              videoStatus: "processing",
-              videoProgress: 10,
-              projectName: scriptRecord.projectName ?? scriptRecord.topic,
-            },
-          });
-          projectId = newScript.id;
+          // ignore sync errors
         }
       }
     }

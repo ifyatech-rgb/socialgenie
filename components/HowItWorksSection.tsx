@@ -168,7 +168,7 @@ export default function HowItWorksSection() {
 
         {/* CTA Button */}
         <div className="text-center mt-16 lg:mt-20">
-          <Link
+            <Link
             href="/auth/signup"
             className="group inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white text-base sm:text-lg font-semibold rounded-full shadow-xl hover:shadow-2xl transition-all hover:scale-105"
           >

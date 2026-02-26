@@ -25,6 +25,8 @@ export interface HeyGenAvatar {
   description?: string;
   resolution?: { width?: number; height?: number };
   dimension?: { width?: number; height?: number };
+  /** Default voice ID from HeyGen (real ID — never use "Default Voice" string as voice_id). */
+  default_voice_id?: string | null;
 }
 
 /** Talking photo from HeyGen v2 /avatars response (photo avatars / UGC-style) */
@@ -52,6 +54,8 @@ export interface FormattedHeyGenAvatar {
   height: number;
   /** Normalized type for dashboard: public (stock), ugc, or from talking_photos */
   avatarType?: "public" | "ugc";
+  /** True when avatar is a HeyGen talking_photo (use character.type "talking_photo" in video/generate). */
+  isTalkingPhoto?: boolean;
 }
 
 export interface HeyGenVoice {
@@ -71,6 +75,10 @@ export interface HeyGenVideoGenerateOptions {
   useNativeResolution?: boolean;
   /** If true (default), use 720p-style resolution so generation works on lower HeyGen plans. */
   useStandardResolution?: boolean;
+  /** If true, add SocialGenie branding for trial users (custom watermark/caption). */
+  trialWatermark?: boolean;
+  /** If true, use character.type "talking_photo" and talking_photo_id instead of avatar (required for photo avatars). */
+  useTalkingPhoto?: boolean;
 }
 
 export interface HeyGenVideoStatus {
@@ -83,12 +91,17 @@ export interface HeyGenVideoStatus {
 }
 
 class HeyGenClient {
-  private apiKey: string | undefined;
   private baseUrl: string;
 
   constructor() {
-    this.apiKey = process.env.HEYGEN_API_KEY;
     this.baseUrl = HEYGEN_API_URL;
+  }
+
+  /** Read API key each time so env changes (e.g. after restart) are picked up; trim whitespace. */
+  private getApiKey(): string | undefined {
+    const raw = process.env.HEYGEN_API_KEY;
+    if (raw == null || raw === "") return undefined;
+    return raw.trim();
   }
 
   private async makeRequest<T>(
@@ -96,14 +109,15 @@ class HeyGenClient {
     method: "GET" | "POST" = "GET",
     body?: unknown
   ): Promise<T> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new Error("HEYGEN_API_KEY is not configured. Add it to your .env file.");
     }
     const url = `${this.baseUrl}${endpoint}`;
     const options: RequestInit = {
       method,
       headers: {
-        "X-Api-Key": this.apiKey,
+        "X-Api-Key": apiKey,
         "Content-Type": "application/json",
       },
     };
@@ -118,8 +132,11 @@ class HeyGenClient {
           (data as { error?: string }).error ??
           (data as { msg?: string }).msg ??
           `HeyGen API error: ${response.status}`;
-        console.error(`[HeyGen] ${method} ${url} → ${response.status}`, responseText.substring(0, 300));
-        throw new Error(String(errMsg));
+        console.error(`[HeyGen] ${method} ${url} → ${response.status}`, responseText.substring(0, 2000));
+        console.error("[HeyGen] Full error response:", responseText);
+        const err = new Error(String(errMsg)) as Error & { rawResponse?: string };
+        err.rawResponse = responseText;
+        throw err;
       }
       return data as T;
     } catch (error) {
@@ -346,6 +363,7 @@ class HeyGenClient {
           width: 1080,
           height: 1920,
           avatarType: "ugc" as const,
+          isTalkingPhoto: true,
         }));
 
       const combined = [...formatted, ...ugcFromTalkingPhotos];
@@ -376,13 +394,11 @@ class HeyGenClient {
 
   async getVoicesForAvatar(avatarId: string): Promise<HeyGenVoice[]> {
     try {
-      // Try avatar-specific voices endpoint first
       const data = await this.makeRequest<{ data?: { voices?: HeyGenVoice[] } }>(
         `/avatar/${encodeURIComponent(avatarId)}/voices`
       );
       if (data?.data?.voices?.length) return data.data.voices;
     } catch {
-      // Fallback: try plural avatars endpoint
       try {
         const data = await this.makeRequest<{ data?: { voices?: HeyGenVoice[] } }>(
           `/avatars/${encodeURIComponent(avatarId)}/voices`
@@ -392,7 +408,8 @@ class HeyGenClient {
         // ignore
       }
     }
-    return await this.getVoices();
+    // Only return voices for this avatar; do not fall back to all voices
+    return [];
   }
 
   async getAvatarDetails(avatarId: string): Promise<{
@@ -494,6 +511,15 @@ class HeyGenClient {
     voiceId: string,
     options: HeyGenVideoGenerateOptions = {}
   ): Promise<{ videoId: string; status: string; resolution?: { width: number; height: number }; aspectRatio?: string }> {
+    const vid = (voiceId ?? "").trim();
+    const aid = (avatarId ?? "").trim();
+    if (!vid || vid.toLowerCase() === "default voice" || vid === aid) {
+      const err = new Error(
+        "Invalid voice_id: do not send display labels or avatar ID to HeyGen. Use a real HeyGen voice_id from avatar details or voices API."
+      ) as Error & { rawResponse?: string };
+        err.rawResponse = JSON.stringify({ error: "invalid_voice_id", message: err.message });
+      throw err;
+    }
     const aspectRatio = options.aspectRatio ?? "9:16";
     const useStandardResolution = options.useStandardResolution !== false;
     const requestedDimension =
@@ -505,18 +531,22 @@ class HeyGenClient {
       ? (HeyGenClient.STANDARD_RESOLUTION[aspectRatio as keyof typeof HeyGenClient.STANDARD_RESOLUTION] ?? HeyGenClient.STANDARD_RESOLUTION["9:16"])
       : requestedDimension;
 
+    const useTalkingPhoto = options.useTalkingPhoto === true;
+    const character = useTalkingPhoto
+      ? { type: "talking_photo" as const, talking_photo_id: avatarId }
+      : {
+          type: "avatar" as const,
+          avatar_id: avatarId,
+          avatar_style: options.avatarStyle ?? "normal",
+          scale: 1.0,
+          offset: { x: 0, y: 0 },
+          fit_to_frame: true,
+          crop: false,
+        };
     const videoInput: Record<string, unknown> = {
       video_inputs: [
         {
-          character: {
-            type: "avatar",
-            avatar_id: avatarId,
-            avatar_style: options.avatarStyle ?? "normal",
-            scale: 1.0,
-            offset: { x: 0, y: 0 },
-            fit_to_frame: true,
-            crop: false,
-          },
+          character,
           voice: {
             type: "text",
             input_text: script,
@@ -530,11 +560,46 @@ class HeyGenClient {
       test: false,
       quality: "high",
       background: options.background ?? { type: "color", value: "#000000" },
+      // Force Engine III (cost-effective). Avoids Avatar IV / premium engine.
+      use_avatar_iv_model: false,
     };
 
-    const data = await this.makeRequest<{ data?: { video_id?: string } }>("/video/generate", "POST", videoInput);
+    // Trial users: SocialGenie watermark (custom branding, NOT HeyGen watermark).
+    // HeyGen API does not support custom watermark text. Store trial flag in metadata; frontend
+    // can overlay "SOCIALGENIE" when displaying trial videos (e.g. video player overlay).
+    if (options.trialWatermark) {
+      (videoInput as Record<string, unknown>).title = "SocialGenie";
+    }
+
+    console.log("[HeyGen] Request payload:", {
+      avatarId,
+      characterType: useTalkingPhoto ? "talking_photo" : "avatar",
+      voiceId,
+      scriptLength: script?.length ?? 0,
+      scriptPreview: script?.substring(0, 80) + (script && script.length > 80 ? "…" : ""),
+      aspectRatio,
+      dimension: { width: dimension.width, height: dimension.height },
+      avatarStyle: options.avatarStyle ?? "normal",
+    });
+    console.log("Full HeyGen request body:", JSON.stringify(videoInput));
+    let data: { data?: { video_id?: string } };
+    try {
+      data = await this.makeRequest<{ data?: { video_id?: string } }>("/video/generate", "POST", videoInput);
+      console.log("=== HEYGEN RAW RESPONSE ===");
+      console.log(JSON.stringify(data));
+    } catch (err) {
+      console.error("[HeyGen] generateVideo API error:", err);
+      const rawResp = err instanceof Error && "rawResponse" in err ? (err as Error & { rawResponse?: string }).rawResponse : undefined;
+      console.log("=== HEYGEN RAW RESPONSE (ERROR) ===");
+      console.log(rawResp ?? (err instanceof Error ? err.message : String(err)));
+      throw err;
+    }
     const videoId = data?.data?.video_id;
-    if (!videoId) throw new Error("HeyGen did not return a video ID");
+    if (!videoId) {
+      console.error("[HeyGen] Response missing video_id. Full response:", JSON.stringify(data));
+      throw new Error("HeyGen did not return a video ID");
+    }
+    console.log("[HeyGen] Response success, video_id:", videoId);
     return {
       videoId,
       status: "processing",
@@ -556,13 +621,15 @@ class HeyGenClient {
     message?: string;
     error?: string;
   }> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) throw new Error("HEYGEN_API_KEY is not configured.");
     try {
       console.log("[HeyGen] Creating talking photo (instant avatar):", avatarName);
       const url = `${HEYGEN_UPLOAD_URL}/talking_photo`;
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          "X-Api-Key": this.apiKey!,
+          "X-Api-Key": apiKey,
           "Content-Type": mimeType,
         },
         body: new Uint8Array(imageBuffer),
@@ -602,7 +669,8 @@ class HeyGenClient {
     mimeType: string,
     filename = "avatar-video.mp4"
   ): Promise<{ success: boolean; videoUrl?: string; videoId?: string; error?: string }> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       return { success: false, error: "HEYGEN_API_KEY is not configured." };
     }
     try {
@@ -613,7 +681,7 @@ class HeyGenClient {
       const response = await fetch(uploadUrl, {
         method: "POST",
         headers: {
-          "X-Api-Key": this.apiKey,
+          "X-Api-Key": apiKey,
           "Content-Type": mimeType,
         },
         body: new Uint8Array(videoBuffer),
@@ -846,10 +914,11 @@ class HeyGenClient {
   async getVideoStatus(videoId: string): Promise<HeyGenVideoStatus> {
     // HeyGen video status uses V1 endpoint (v2 /video/{id} returns 404)
     const v1Url = `https://api.heygen.com/v1/video_status.get?video_id=${encodeURIComponent(videoId)}`;
-    if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured.");
+    const apiKey = this.getApiKey();
+    if (!apiKey) throw new Error("HEYGEN_API_KEY is not configured.");
     const response = await fetch(v1Url, {
       method: "GET",
-      headers: { "X-Api-Key": this.apiKey, "Content-Type": "application/json" },
+      headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
     });
     const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     if (!response.ok) {

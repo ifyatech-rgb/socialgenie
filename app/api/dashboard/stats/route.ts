@@ -29,67 +29,71 @@ export async function GET() {
       videosThisMonth,
       videosLastMonth,
     ] = await Promise.all([
-      // Total counts
-      prisma.video.count({
-        where: { userId: session.user.id },
+      // Total counts (videos = scripts with generated_video_url)
+      prisma.scripts.count({
+        where: { user_id: session.user.id, generated_video_url: { not: null } },
       }),
-      prisma.script.count({
-        where: { userId: session.user.id },
+      prisma.scripts.count({
+        where: { user_id: session.user.id },
       }),
       // Scripts this week
-      prisma.script.count({
+      prisma.scripts.count({
         where: {
-          userId: session.user.id,
-          createdAt: { gte: oneWeekAgo },
+          user_id: session.user.id,
+          created_at: { gte: oneWeekAgo },
         },
       }),
       // Scripts last week (for comparison)
-      prisma.script.count({
+      prisma.scripts.count({
         where: {
-          userId: session.user.id,
-          createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo },
+          user_id: session.user.id,
+          created_at: { gte: twoWeeksAgo, lt: oneWeekAgo },
         },
       }),
       // Videos this week
-      prisma.video.count({
+      prisma.scripts.count({
         where: {
-          userId: session.user.id,
-          createdAt: { gte: oneWeekAgo },
+          user_id: session.user.id,
+          generated_video_url: { not: null },
+          created_at: { gte: oneWeekAgo },
         },
       }),
       // Videos last week (for comparison)
-      prisma.video.count({
+      prisma.scripts.count({
         where: {
-          userId: session.user.id,
-          createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo },
+          user_id: session.user.id,
+          generated_video_url: { not: null },
+          created_at: { gte: twoWeeksAgo, lt: oneWeekAgo },
         },
       }),
       // Scripts this month
-      prisma.script.count({
+      prisma.scripts.count({
         where: {
-          userId: session.user.id,
-          createdAt: { gte: oneMonthAgo },
+          user_id: session.user.id,
+          created_at: { gte: oneMonthAgo },
         },
       }),
       // Scripts last month (for comparison)
-      prisma.script.count({
+      prisma.scripts.count({
         where: {
-          userId: session.user.id,
-          createdAt: { gte: twoMonthsAgo, lt: oneMonthAgo },
+          user_id: session.user.id,
+          created_at: { gte: twoMonthsAgo, lt: oneMonthAgo },
         },
       }),
       // Videos this month
-      prisma.video.count({
+      prisma.scripts.count({
         where: {
-          userId: session.user.id,
-          createdAt: { gte: oneMonthAgo },
+          user_id: session.user.id,
+          generated_video_url: { not: null },
+          created_at: { gte: oneMonthAgo },
         },
       }),
       // Videos last month (for comparison)
-      prisma.video.count({
+      prisma.scripts.count({
         where: {
-          userId: session.user.id,
-          createdAt: { gte: twoMonthsAgo, lt: oneMonthAgo },
+          user_id: session.user.id,
+          generated_video_url: { not: null },
+          created_at: { gte: twoMonthsAgo, lt: oneMonthAgo },
         },
       }),
     ]);

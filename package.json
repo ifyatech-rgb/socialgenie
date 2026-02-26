@@ -12,7 +12,13 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "next lint",
-    "set-email-paid": "node scripts/set-email-paid.js"
+    "set-email-paid": "node scripts/set-email-paid.js",
+    "set-creator-plan": "node scripts/set-creator-plan.js",
+    "migrate-db": "node scripts/migrate-database.mjs",
+    "cleanup-old-tables": "node scripts/cleanup-old-tables.js",
+    "restore-after-cleanup": "node scripts/restore-old-tables.mjs",
+    "db:push-sql": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script",
+    "sync-heygen-avatars": "node scripts/sync-heygen-avatar-voices.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -22,7 +28,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@stripe/stripe-js": "^8.7.0",
     "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.93.2",
+    "@supabase/supabase-js": "^2.97.0",
     "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",

@@ -6,9 +6,12 @@ import { generateContent, getDefaultModel, handleClaudeError } from '@/lib/claud
 import { researchNiche, formatResearchForPrompt, CompetitorResearch } from '@/lib/competitor-research'
 import { getViralScriptSystemPrompt } from '@/lib/viral-script-prompt'
 import { cleanScript } from '@/lib/scriptCleaner'
-import { formatScript, validateScriptStructure } from '@/lib/scriptFormatter'
-import { canAccessApp } from '@/lib/payment'
+import { formatScript, validateScriptStructure, extractScriptFromResponse, dedupeScriptSections } from '@/lib/scriptFormatter'
+import { sanitizeScriptNumbers, extractNumbersFromScript } from '@/lib/sanitizeScriptNumbers'
+import { canAccessApp, canUseFeature } from '@/lib/payment'
 import { trackCreditsUsage, trackFeatureUsage } from '@/lib/tracking'
+import { syncScriptToSupabase, syncActivityToSupabase } from '@/lib/supabase-sync'
+import { invalidateUser } from '@/lib/dashboard-cache'
 
 // Types
 interface GenerateScriptRequest {
@@ -25,6 +28,8 @@ interface GenerateScriptRequest {
   enableResearch?: boolean // When true, run research and charge 3 credits
   brandVoice?: string
   ctaPreference?: string
+  /** Explicit CTA type: follow | comment | like | share | save | link (used for strict CTA wording) */
+  cta?: string
 }
 
 // Dynamic length ranges: short (30-50s), medium (50-80s), long (80-120s)
@@ -160,13 +165,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database with credits and payment status
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: session.user.email },
       select: {
         id: true,
         email: true,
         name: true,
         credits: true,
+        video_credits: true,
+        plan: true,
+        created_at: true,
         payment_status: true,
       },
     })
@@ -185,6 +193,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const featureCheck = canUseFeature({
+      plan: user.plan,
+      videoCredits: user.video_credits,
+      credits: user.credits,
+      createdAt: user.created_at ?? new Date(),
+    })
+    if (!featureCheck.allowed) {
+      const creditsRemaining = user.video_credits ?? user.credits ?? 0
+      return NextResponse.json(
+        {
+          error: featureCheck.error,
+          code: featureCheck.code,
+          creditsRemaining,
+        },
+        { status: 402 }
+      )
+    }
+
     // 2. Parse request body
     const body: GenerateScriptRequest = await request.json()
     const {
@@ -199,6 +225,7 @@ export async function POST(request: NextRequest) {
       hookStyle,
       brandVoice,
       ctaPreference,
+      cta,
       enableResearch = false,
     } = body
 
@@ -391,10 +418,51 @@ Respond with ONLY a JSON object, no other text:
     const toneModifier = TONE_MODIFIERS[tone]
     const hookInstruction = hookStyle ? HOOK_STYLES[hookStyle] : 'Choose the most effective hook style for this topic and audience.'
     const storyInstruction = storyType && storyType !== 'auto' ? STORY_TYPE_INSTRUCTIONS[storyType] : ''
+
+    const ctaType = (cta ?? ctaPreference ?? '').toString().toLowerCase()
+    const ctaInstructions: Record<string, string> = {
+      follow: 'CTA MUST end with a follow ask: e.g. "Follow for more [topic-related] content!" or "Follow for Part 2."',
+      comment: 'CTA MUST use Format A: Comment [SPECIFIC WORD] and I\'ll send you [SPECIFIC RESOURCE]. No generic "comment below".',
+      like: 'CTA MUST include a like ask: e.g. "Like if you found this helpful!" or "Like and save for later."',
+      share: 'CTA MUST ask to share: e.g. "Share this with someone who needs to see it!"',
+      save: 'CTA MUST ask to save: e.g. "Save this for later!" with a specific reason.',
+      link: 'CTA MUST say link in bio: e.g. "Link in bio for more!" or "Full [resource] in bio."',
+    }
+    const ctaInstruction = ctaType && ctaInstructions[ctaType]
+      ? ctaInstructions[ctaType]
+      : ctaPreference
+        ? `**CTA preference:** ${ctaPreference} - Use Format A, B, or C from the system prompt.`
+        : ''
     
     // Build research section for prompt
     const researchSection = research ? formatResearchForPrompt(research) : ''
     const systemPrompt = getViralScriptSystemPrompt(researchUsed, researchSection)
+
+    // Personalized banned numbers: extract from user's last 10 scripts so we never repeat
+    let userBannedNumbersSection = ''
+    try {
+      const recentScripts = await prisma.scripts.findMany({
+        where: { user_id: user.id },
+        orderBy: { created_at: 'desc' },
+        take: 10,
+        select: { script_text: true },
+      })
+      const allNumbers = new Set<string>()
+      recentScripts.forEach((s) => {
+        const text = s.script_text ?? ''
+        extractNumbersFromScript(text).forEach((n) => allNumbers.add(n))
+      })
+      const bannedList = Array.from(allNumbers).slice(0, 80)
+      if (bannedList.length > 0) {
+        userBannedNumbersSection = `
+
+**BANNED FOR THIS USER'S NEXT SCRIPT (do not use ANY of these — they appeared in their recent scripts):**
+${bannedList.join(', ')}
+`
+      }
+    } catch {
+      // non-blocking
+    }
 
     const userPrompt = `## SCRIPT REQUEST
 
@@ -433,7 +501,8 @@ ${specificPoints ? `**Points to include:** ${specificPoints}` : ''}
 
 ${brandVoice ? `**Brand voice:** ${brandVoice}` : ''}
 
-${ctaPreference ? `**CTA preference:** ${ctaPreference} - Enhance using Format A, B, or C from the system prompt.` : ''}
+${ctaInstruction ? `**CTA (CRITICAL - follow exactly):** ${ctaInstruction}` : ''}
+${userBannedNumbersSection}
 
 ---
 
@@ -473,9 +542,15 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
       throw new Error('No script generated from Claude')
     }
 
-    // Post-process: clean visual directions, then ensure structured format
-    generatedScript = cleanScript(generatedScript.trim())
+    // Strip research/thinking: only keep from first "🎣 HOOK:" onwards
+    generatedScript = extractScriptFromResponse(generatedScript.trim())
+    // One HOOK, one CONTENT, one CTA — remove duplicate sections
+    generatedScript = dedupeScriptSections(generatedScript)
+    // Clean visual directions, then ensure structured format
+    generatedScript = cleanScript(generatedScript)
     generatedScript = formatScript(generatedScript)
+    // Remove prompt-contamination numbers (847, 94%, $47K, etc.) — replace with fresh numbers
+    generatedScript = sanitizeScriptNumbers(generatedScript)
     const validation = validateScriptStructure(generatedScript)
     if (!validation.isValid) {
       console.warn('[ScriptGen] Structure incomplete:', validation.missingParts, '- script saved as-is')
@@ -485,36 +560,35 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
     console.log('Script generated, cleaned, and formatted; saving to database...')
 
     // 7. Save script as DRAFT (no credit charged - credits charged only on finalize)
-    let script: Awaited<ReturnType<typeof prisma.script.create>>
+    let script: Awaited<ReturnType<typeof prisma.scripts.create>>
     try {
-      script = await prisma.script.create({
+      script = await prisma.scripts.create({
         data: {
-          userId: user.id,
+          user_id: user.id,
           topic,
           platform,
-          tone,
-          length: effectiveLength,
-          content: generatedScript,
-          status: 'generated',
-          lifecycleStatus: 'draft',
-          creditCharged: false,
-          refinementCount: 0,
-          chatHistory: [],
+          content_style: tone,
+          script_text: generatedScript,
+          status: 'draft',
+          lifecycle_status: 'draft',
+          credit_charged: false,
+          chat_history: [],
+          estimated_duration: effectiveLength ?? undefined,
+          cta: ctaType || undefined,
         },
       })
     } catch (createErr: unknown) {
       const msg = String((createErr as { message?: string })?.message ?? '')
-      if (msg.includes('lifecycleStatus') || msg.includes('refinementCount') || msg.includes('chatHistory')) {
-        // DB missing refinement columns - run: npx prisma db push
-        script = await prisma.script.create({
+      if (msg.includes('lifecycle_status') || msg.includes('credit_charged') || msg.includes('chat_history') || msg.includes('status') || msg.includes('constraint')) {
+        script = await prisma.scripts.create({
           data: {
-            userId: user.id,
+            user_id: user.id,
             topic,
             platform,
-            tone,
-            length: effectiveLength,
-            content: generatedScript,
-            status: 'generated',
+            content_style: tone,
+            script_text: generatedScript,
+            status: 'draft',
+            cta: ctaType || undefined,
           },
         })
         console.warn('[ScriptGen] Saved without refinement columns. Run: npx prisma db push')
@@ -523,20 +597,42 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
       }
     }
 
+    syncScriptToSupabase({
+      id: script.id,
+      user_id: user.id,
+      topic: script.topic,
+      platform: script.platform,
+      content: script.script_text,
+      tone: script.content_style ?? undefined,
+      length: script.estimated_duration ?? undefined,
+      status: script.status ?? 'generated',
+      lifecycle_status: script.lifecycle_status ?? 'draft',
+      created_at: script.created_at?.toISOString(),
+      updated_at: script.updated_at?.toISOString(),
+    }).catch(() => {})
+
     // Log activity (non-blocking)
-    prisma.activity.create({
-        data: {
-          userId: user.id,
-          action: 'script.generated',
-          details: JSON.stringify({
-            scriptId: script.id,
+    prisma.user_activity_log.create({
+      data: {
+        user_id: user.id,
+        activity_type: 'script.generated',
+        metadata: {
+          scriptId: script.id,
           topic,
           platform,
           tone,
           length: effectiveLength,
           researchUsed,
-          }),
         },
+      },
+    }).then((activity) => {
+      syncActivityToSupabase({
+        id: activity.id,
+        user_id: activity.user_id ?? "",
+        action: activity.activity_type,
+        details: JSON.stringify(activity.metadata ?? {}),
+        created_at: activity.created_at?.toISOString(),
+      }).catch(() => {})
     }).catch(err => console.error('Failed to log activity:', err))
 
     trackFeatureUsage({
@@ -547,6 +643,9 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
 
     const actualWordCount = generatedScript.split(/\s+/).filter(Boolean).length
 
+    // Invalidate dashboard/scripts caches so next load shows this script everywhere
+    invalidateUser(user.id)
+
     // 8. Return success response
     return NextResponse.json({
       success: true,
@@ -554,16 +653,17 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
         id: script.id,
         topic: script.topic,
         platform: script.platform,
-        tone: script.tone,
-        length: script.length,
-        content: script.content,
+        tone: script.content_style,
+        length: script.estimated_duration,
+        content: script.script_text,
         status: script.status,
-        createdAt: script.createdAt,
+        cta: script.cta ?? undefined,
+        createdAt: script.created_at,
       },
       model: getDefaultModel(),
       creditsRemaining: user.credits,
       metadata: {
-        optimalLength: useDynamicLength ? optimalLengthLabel : `${script.length}s`,
+        optimalLength: useDynamicLength ? optimalLengthLabel : `${script.estimated_duration ?? effectiveLength}s`,
         targetWordCount: `${wordCount.min}-${wordCount.max}`,
         actualWordCount,
         lengthReasoning: useDynamicLength ? lengthReasoning : undefined,
@@ -581,12 +681,19 @@ Use only pure spoken words under each section. No [bracketed] directions, no em 
     })
 
   } catch (error: unknown) {
-    const err = error as { message?: string; status?: number; error?: { message?: string } }
-    console.error('[ScriptGen] Script generation failed:', err?.message ?? err)
+    const err = error as { message?: string }
+    const rawMsg = String(err?.message ?? '')
+    console.error('[ScriptGen] Script generation failed:', rawMsg)
+
+    // Database/constraint errors: never show raw message or "API credits" to users
+    if (rawMsg.includes('23514') || rawMsg.includes('constraint') || rawMsg.includes('violates check') || rawMsg.includes('scripts.create')) {
+      return NextResponse.json(
+        { success: false, error: "We couldn't save your script. Please try again." },
+        { status: 500 }
+      )
+    }
+
     const { message, status } = handleClaudeError(error, 'Script generation')
-    const isDev = process.env.NODE_ENV === 'development'
-    const body: { success: false; error: string; detail?: string } = { success: false, error: message }
-    if (isDev && err?.message) body.detail = err.message
-    return NextResponse.json(body, { status })
+    return NextResponse.json({ success: false, error: message }, { status })
   }
 }

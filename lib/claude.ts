@@ -74,7 +74,9 @@ export function handleClaudeError(error: unknown, context?: string): { message: 
   if (err?.status === 529 || err?.error?.type === 'overloaded_error') {
     return { message: 'AI service is currently experiencing high demand. Please try again in a few seconds.', status: 503 }
   }
-  if (err?.status === 402 || err?.message?.toLowerCase().includes('credit')) {
+  // Only show API credits message for real Anthropic billing errors (402 or explicit credit/billing message), not DB column names like "credit_charged"
+  const lower = (err?.message ?? '').toLowerCase()
+  if (err?.status === 402 || (lower.includes('credit') && (lower.includes('exhausted') || lower.includes('billing') || lower.includes('anthropic')))) {
     return { message: 'API credits exhausted. Please add billing to your Anthropic account.', status: 402 }
   }
   if (err?.status && err.status >= 500) {

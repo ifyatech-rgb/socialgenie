@@ -16,6 +16,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clearScriptVideoContext } from "@/lib/script-video-context-storage";
 import { toast } from "sonner";
 
 // Tab definitions
@@ -298,7 +299,10 @@ export default function SettingsPage() {
                 Sign out of your account on this device
               </p>
               <button
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={() => {
+                  clearScriptVideoContext();
+                  signOut({ callbackUrl: "/" });
+                }}
                 className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
               >
                 <LogOut className="h-4 w-4" />

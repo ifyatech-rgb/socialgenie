@@ -7,18 +7,19 @@ export default function FinalCTASection() {
   const router = useRouter();
   const [email, setEmail] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
-      });
-    } catch {
-      // best-effort
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) return;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("signupEmail", trimmed);
     }
-    router.push("/auth/signup");
+    fetch("/api/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: trimmed }),
+    }).catch(() => {});
+    router.push(`/auth/signup?email=${encodeURIComponent(trimmed)}`);
   };
 
   const avatarData = [

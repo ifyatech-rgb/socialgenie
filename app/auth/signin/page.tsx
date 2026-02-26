@@ -9,7 +9,7 @@ import { toast } from "sonner"
 import { LogoIcon } from "@/components/logo"
 import { PLANS, type PlanKey } from "@/lib/plans"
 
-const PAID_PLANS: PlanKey[] = ["creator", "professional", "enterprise"]
+const PAID_PLANS: PlanKey[] = ["creator", "professional"]
 
 export default function SignInPage() {
   const router = useRouter()
@@ -98,6 +98,7 @@ export default function SignInPage() {
         }
         // Step 2: Create session via NextAuth — use form submit so cookie is set and browser redirects
         const csrfToken = await getCsrfToken()
+        // Returning users (login) → dashboard; new users go to onboarding via signup flow
         const callbackUrl = typeof window !== "undefined" ? `${window.location.origin}/dashboard` : "/dashboard"
         const form = document.createElement("form")
         form.method = "POST"
@@ -127,7 +128,7 @@ export default function SignInPage() {
         password,
         name: fullName,
         redirect: false,
-        callbackUrl: "/dashboard",
+        callbackUrl: "/onboarding",
       })
 
       if (result?.error) {
@@ -179,7 +180,7 @@ export default function SignInPage() {
   }
 
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/dashboard" })
+    signIn("google", { callbackUrl: "/auth/redirect-decide" })
   }
 
   return (
@@ -236,7 +237,7 @@ export default function SignInPage() {
             {noAccountFound && (
               <div className="mb-6 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 text-sm flex flex-col gap-2">
                 <span>No account found. Please sign up first.</span>
-                <Link href="/auth/signup" className="font-medium text-white hover:underline inline-flex items-center gap-1">
+                <Link href="/onboarding" className="font-medium text-white hover:underline inline-flex items-center gap-1">
                   Don&apos;t have an account? Sign up
                 </Link>
               </div>
@@ -446,7 +447,7 @@ export default function SignInPage() {
               {isLogin ? (
                 <>
                   Don&apos;t have an account?{" "}
-                  <Link href="/auth/signup" className="text-white hover:text-primary font-medium transition-colors">
+                  <Link href="/onboarding" className="text-white hover:text-primary font-medium transition-colors">
                     Sign up
                   </Link>
                 </>

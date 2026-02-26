@@ -19,51 +19,41 @@ export async function POST(
     }
 
     const { id } = await context.params;
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+    const email = session.user.email.trim().toLowerCase();
+    const user = await prisma.users.findUnique({
+      where: { email },
+      select: { id: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const script = await prisma.script.findFirst({
-      where: {
-        id,
-        userId: user.id,
-      },
+    const script = await prisma.scripts.findFirst({
+      where: { id, user_id: user.id },
     });
 
     if (!script) {
       return NextResponse.json({ error: "Script not found" }, { status: 404 });
     }
 
-    // Check if video is being generated
-    if (script.status !== "video_processing") {
+    const vStatus = (script.video_status ?? "").toLowerCase();
+    if (vStatus !== "processing" && vStatus !== "pending") {
       return NextResponse.json(
         { error: "No video generation in progress for this script" },
         { status: 400 }
       );
     }
 
-    // HeyGen doesn't support cancelling in-flight jobs; we reset our DB state only.
-    // The video may still complete on HeyGen's side but won't be linked to this script.
-
-    const updatedScript = await prisma.script.update({
+    const updated = await prisma.scripts.update({
       where: { id },
-      data: {
-        status: "generated",
-        generatedVideoUrl: null,
-        generatedVideoId: null,
-        videoProvider: null,
-        videoStatus: null,
-      },
+      data: { video_status: "cancelled", video_error: null },
     });
 
     return NextResponse.json({
       success: true,
       message: "Video generation cancelled successfully",
-      script: updatedScript,
+      script: { id: updated.id, video_status: updated.video_status },
     });
 
   } catch (error: any) {

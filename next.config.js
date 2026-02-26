@@ -11,7 +11,10 @@ const nextConfig = {
       { protocol: 'https', hostname: 'lh3.googleusercontent.com', pathname: '/**' },
     ],
     formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 3600,
   },
+
+  compress: true,
 
   // Hide the floating "N" dev indicator in the bottom-left (dev only; never shows in production)
   devIndicators: false,
@@ -24,8 +27,10 @@ const nextConfig = {
 
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb',
+      bodySizeLimit: '150mb',
     },
+    // Allow large avatar video uploads (main + consent) in route handlers
+    proxyClientMaxBodySize: '150mb',
     // Optimize package imports
     optimizePackageImports: ['lucide-react', '@anthropic-ai/sdk', 'framer-motion', 'recharts'],
   },
@@ -44,11 +49,21 @@ const nextConfig = {
     } : false,
   },
 
-  // In development only: allow 'unsafe-eval' so HMR / dev tools don't trigger CSP console errors
   async headers() {
-    if (process.env.NODE_ENV !== 'development') return [];
-    return [
+    const list = [
       {
+        source: '/api/heygen/avatars',
+        headers: [
+          { key: 'Cache-Control', value: 'private, s-maxage=3600, stale-while-revalidate=86400' },
+        ],
+      },
+      {
+        source: '/:path*',
+        headers: [{ key: 'X-DNS-Prefetch-Control', value: 'on' }],
+      },
+    ];
+    if (process.env.NODE_ENV === 'development') {
+      list.push({
         source: '/:path*',
         headers: [
           {
@@ -56,8 +71,9 @@ const nextConfig = {
             value: "script-src 'self' 'unsafe-eval' 'unsafe-inline'; object-src 'self'; base-uri 'self';",
           },
         ],
-      },
-    ];
+      });
+    }
+    return list;
   },
 }
 

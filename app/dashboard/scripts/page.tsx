@@ -26,19 +26,22 @@ const ScriptRefinementChat = dynamic(
   { loading: () => <div className="p-4 text-gray-500">Loading chat...</div>, ssr: false }
 );
 import { cleanScript, hasVisualDirections } from "@/lib/scriptCleaner";
-import { extractSections, validateScriptStructure } from "@/lib/scriptFormatter";
+import { extractSections, validateScriptStructure, getDisplayScript } from "@/lib/scriptFormatter";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const PENDING_SCRIPT_KEY = "pendingScript";
+import { setActiveVideoFlow, syncActiveFlowToLegacyStorage } from "@/lib/script-video-context-storage";
 
 function StructuredScriptContent({ content }: { content: string }) {
-  const validation = validateScriptStructure(content);
-  const sections = extractSections(content);
+  const displayContent = getDisplayScript(content);
+  const validation = validateScriptStructure(displayContent);
+  const sections = extractSections(displayContent);
   const hasSections = sections.hook || sections.content || sections.cta;
 
   if (!validation.isValid || !hasSections) {
     return (
       <div className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap">
-        {content}
+        {displayContent || content}
       </div>
     );
   }
@@ -174,17 +177,25 @@ export default function ScriptsPage() {
   const [editTopic, setEditTopic] = useState("");
   const [saving, setSaving] = useState(false);
   const scriptDisplayRef = useRef<HTMLDivElement>(null);
+  const [upgradeModal, setUpgradeModal] = useState<{
+    show: boolean;
+    reason: "credits" | "trial";
+    creditsRemaining: number;
+  } | null>(null);
 
   useEffect(() => {
     loadUserCredits();
     loadSavedScripts();
   }, []);
 
-  // Sync credits when tab becomes visible or dashboard-refresh fires
+  // Sync credits and scripts when tab becomes visible or dashboard-refresh fires
   useEffect(() => {
-    const onRefresh = () => loadUserCredits();
+    const onRefresh = () => {
+      loadUserCredits();
+      loadSavedScripts();
+    };
     const onVisible = () => {
-      if (document.visibilityState === "visible") loadUserCredits();
+      if (document.visibilityState === "visible") onRefresh();
     };
     window.addEventListener("dashboard-refresh", onRefresh);
     document.addEventListener("visibilitychange", onVisible);
@@ -247,6 +258,7 @@ export default function ScriptsPage() {
         niche: enableResearch ? (niche.trim() || topic.trim().split(/\s+/).slice(0, 3).join(" ")) : undefined,
         brandVoice: brandVoices.find((v) => v.id === brandVoice)?.label || undefined,
         ctaPreference: ctaOptions.find((c) => c.id === ctaPreference)?.label || undefined,
+        cta: ctaPreference,
       };
 
       const res = await fetch("/api/scripts/generate", {
@@ -259,9 +271,16 @@ export default function ScriptsPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 402 && (data.code === "out_of_credits" || data.code === "trial_expired")) {
+          setUpgradeModal({
+            show: true,
+            reason: data.code === "trial_expired" ? "trial" : "credits",
+            creditsRemaining: data.creditsRemaining ?? 0,
+          });
+          return;
+        }
         const errMsg = data.error ?? "Failed to generate script";
-        const detail = data.detail ? ` ${data.detail}` : "";
-        throw new Error(errMsg + detail);
+        throw new Error(errMsg);
       }
 
       let scriptContent =
@@ -300,16 +319,22 @@ export default function ScriptsPage() {
     const p = scriptPlatform ?? platform;
     if (!s) return;
     try {
-      sessionStorage.setItem(
-        PENDING_SCRIPT_KEY,
-        JSON.stringify({
-          scriptId: id ?? undefined,
-          script: s,
-          topic: t,
-          platform: p,
-        })
-      );
-      router.push(id ? `/dashboard/avatars?script=${id}` : "/dashboard/avatars");
+      const now = Date.now();
+      const payload = {
+        scriptId: id ?? undefined,
+        script: s,
+        topic: t,
+        platform: p,
+      };
+      sessionStorage.setItem(PENDING_SCRIPT_KEY, JSON.stringify(payload));
+      if (id) {
+        setActiveVideoFlow({ scriptId: id, scriptTitle: t || "Script", platform: p || "TikTok", timestamp: now });
+        syncActiveFlowToLegacyStorage(
+          { scriptId: id, scriptTitle: t || "Script", platform: p || "TikTok", timestamp: now },
+          s
+        );
+      }
+      router.push(id ? `/dashboard/avatars?scriptId=${encodeURIComponent(id)}` : "/dashboard/avatars");
     } catch {
       toast.error("Could not save script");
     }
@@ -1120,6 +1145,14 @@ export default function ScriptsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {upgradeModal?.show && (
+        <UpgradeModal
+          onClose={() => setUpgradeModal(null)}
+          reason={upgradeModal.reason}
+          creditsRemaining={upgradeModal.creditsRemaining}
+        />
       )}
     </div>
   );

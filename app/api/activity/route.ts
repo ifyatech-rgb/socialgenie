@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: userEmail },
       select: { id: true },
     });
@@ -24,15 +24,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "10", 10);
 
-    const activities = await prisma.activity.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
+    const activities = await prisma.user_activity_log.findMany({
+      where: { user_id: user.id },
+      orderBy: { created_at: "desc" },
       take: limit,
+      select: { id: true, activity_type: true, metadata: true, created_at: true },
     });
 
-    // Format activities for display
+    // Format activities for display (map user_activity_log fields to expected shape)
     const formattedActivities = activities.map((activity) => {
-      const details = activity.details ? JSON.parse(activity.details) : {};
+      const details = (activity.metadata as Record<string, unknown>) || {};
       const actionMap: Record<string, { type: string; text: string; action: string }> = {
         "script.generated": {
           type: "script",
@@ -71,9 +72,10 @@ export async function GET(request: NextRequest) {
         },
       };
 
-      const config = actionMap[activity.action] || {
+      const action = activity.activity_type;
+      const config = actionMap[action] || {
         type: "other",
-        text: activity.action,
+        text: action,
         action: "View",
       };
 
@@ -82,8 +84,8 @@ export async function GET(request: NextRequest) {
         type: config.type,
         text: config.text,
         action: config.action,
-        time: getRelativeTime(activity.createdAt),
-        createdAt: activity.createdAt,
+        time: getRelativeTime(activity.created_at ?? new Date()),
+        createdAt: activity.created_at ?? new Date(),
       };
     });
 
@@ -117,15 +119,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const activity = await prisma.activity.create({
+    const activity = await prisma.user_activity_log.create({
       data: {
-        userId: session.user.id,
-        action,
-        details: details ? JSON.stringify(details) : null,
+        user_id: session.user.id,
+        activity_type: action,
+        metadata: details ? (details as object) : undefined,
       },
     });
 
-    return NextResponse.json({ activity });
+    return NextResponse.json({
+      activity: {
+        id: activity.id,
+        action: activity.activity_type,
+        details: activity.metadata,
+        createdAt: activity.created_at,
+      },
+    });
   } catch (error: any) {
     console.error("Error logging activity:", error);
     return NextResponse.json(

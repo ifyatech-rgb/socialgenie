@@ -27,15 +27,16 @@ import {
   TrendingUp,
   Target,
   User,
-  Palette,
-  Type,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getDisplayScript } from "@/lib/scriptFormatter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlatformBadge, ToneBadge, StatusBadge } from "@/components/ui/badge";
-import { Modal, ConfirmModal } from "@/components/ui/modal";
+import { ConfirmModal } from "@/components/ui/modal";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { toast } from "sonner";
+import { setActiveVideoFlow, syncActiveFlowToLegacyStorage } from "@/lib/script-video-context-storage";
 
 interface Script {
   id: string;
@@ -45,6 +46,7 @@ interface Script {
   length: number;
   content: string;
   status: string;
+  cta?: string;
   createdAt: string;
   updatedAt: string;
   generatedVideoId?: string;
@@ -125,7 +127,6 @@ const getScriptInsights = (script: Script): string[] => {
 
 // Helper to format script content with highlights
 const formatScriptContent = (content: string) => {
-  // Highlight [HOOK], [CTA], [VISUAL CUE], etc.
   let formatted = content;
 
   // Highlight section markers
@@ -160,7 +161,6 @@ export default function ScriptViewPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRegenerateModal, setShowRegenerateModal] = useState(false);
-  const [showVideoModal, setShowVideoModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [generatingVideo, setGeneratingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState<string>('');
@@ -179,6 +179,12 @@ export default function ScriptViewPage() {
   const [availableAvatars, setAvailableAvatars] = useState<any[]>([]);
   const [availableVoices, setAvailableVoices] = useState<any[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
+  const [selectedAvatarDisplay, setSelectedAvatarDisplay] = useState<{ name: string; thumbnail?: string | null } | null>(null);
+  const [upgradeModal, setUpgradeModal] = useState<{
+    show: boolean;
+    reason: "credits" | "trial";
+    creditsRemaining: number;
+  } | null>(null);
 
   // HeyGen pre-made voices (for default avatar mode)
   const HEYGEN_VOICES = [
@@ -195,9 +201,34 @@ export default function ScriptViewPage() {
         const response = await fetch(`/api/scripts/${scriptId}`);
         if (response.ok) {
           const data = await response.json();
-          setScript(data.script);
-          setEditedContent(data.script.content);
+          const scriptData = data.script;
+          setScript(scriptData);
+          setEditedContent(scriptData.content ?? "");
+          try {
+            sessionStorage.setItem("scriptIdForAvatar", scriptId);
+            localStorage.setItem("scriptIdForAvatar", scriptId);
+            sessionStorage.setItem("scriptIdForVideo", scriptId);
+            localStorage.setItem("scriptIdForVideo", scriptId);
+            localStorage.setItem(
+              "currentScript",
+              JSON.stringify({
+                id: scriptData.id,
+                topic: scriptData.topic ?? "",
+                scriptText: scriptData.content ?? "",
+                platform: scriptData.platform ?? "",
+                cta: scriptData.cta ?? undefined,
+                selectedAt: Date.now(),
+              })
+            );
+          } catch {
+            // ignore storage
+          }
         } else {
+          try {
+            sessionStorage.removeItem("scriptIdForAvatar");
+            localStorage.removeItem("scriptIdForAvatar");
+            localStorage.removeItem("currentScript");
+          } catch { /* ignore */ }
           toast.error("Script not found");
           router.push("/dashboard/scripts");
         }
@@ -223,27 +254,26 @@ export default function ScriptViewPage() {
       .catch(() => {});
   }, []);
 
-  // Fetch avatars and voices when modal opens
   useEffect(() => {
-    if (showVideoModal && availableAvatars.length === 0) {
-      setLoadingOptions(true);
-      Promise.all([
-        fetch('/api/heygen/avatars').then((r) => (r.ok ? r.json() : { avatars: [] })),
-        fetch('/api/heygen/voices').then((r) => (r.ok ? r.json() : { voices: [] })),
-      ])
-        .then(([avatarData, voiceData]) => {
-          const avatars = avatarData.avatars || [];
-          const voices = voiceData.voices || [];
-          setAvailableAvatars(avatars);
-          setAvailableVoices(voices);
-          if (avatars.length > 0 && !selectedAvatar) {
-            setSelectedAvatar(avatars[0].avatar_id);
-          }
-        })
-        .catch(() => toast.error('Failed to load options'))
-        .finally(() => setLoadingOptions(false));
+    try {
+      const fromSession = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("selectedAvatarFull") : null;
+      const fromLocal = typeof localStorage !== "undefined" ? localStorage.getItem("selectedAvatarFull") : null;
+      const raw = fromSession ?? fromLocal;
+      if (raw && raw.startsWith("{")) {
+        const parsed = JSON.parse(raw) as { voice_id?: string; id?: string; name?: string; selectedLook?: string };
+        if (parsed?.voice_id) setSelectedVoice(parsed.voice_id);
+        if (parsed?.id) setSelectedAvatar(parsed.id);
+        if (parsed?.name || parsed?.selectedLook) {
+          setSelectedAvatarDisplay({
+            name: parsed.selectedLook ?? parsed.name ?? "Avatar",
+            thumbnail: undefined,
+          });
+        }
+      }
+    } catch {
+      // ignore
     }
-  }, [showVideoModal]);
+  }, []);
 
   const handleCopy = async () => {
     if (!script) return;
@@ -299,12 +329,20 @@ export default function ScriptViewPage() {
         }),
       });
 
+      const data = await response.json();
       if (response.ok) {
-        const data = await response.json();
         router.push(`/dashboard/scripts/${data.script.id}`);
         toast.success("New script generated!");
       } else {
-        toast.error("Failed to regenerate script");
+        if (response.status === 402 && (data.code === "out_of_credits" || data.code === "trial_expired")) {
+          setUpgradeModal({
+            show: true,
+            reason: data.code === "trial_expired" ? "trial" : "credits",
+            creditsRemaining: data.creditsRemaining ?? 0,
+          });
+        } else {
+          toast.error("Failed to regenerate script");
+        }
       }
     } catch (error) {
       toast.error("Failed to regenerate script");
@@ -357,46 +395,117 @@ export default function ScriptViewPage() {
     toast.success("Script downloaded!");
   };
 
-  const handleGenerateVideo = async () => {
+  const handleGenerateVideoClick = () => {
+    if (!script?.id) return;
+    try {
+      const now = Date.now();
+      const flow = {
+        scriptId: script.id,
+        scriptTitle: script.topic ?? "",
+        platform: script.platform ?? "",
+        timestamp: now,
+      };
+      setActiveVideoFlow(flow);
+      syncActiveFlowToLegacyStorage(flow, script.content ?? "");
+      // Clear any previous avatar/video selection so flow starts fresh
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.removeItem("selectedAvatar");
+        sessionStorage.removeItem("selectedAvatarFull");
+      }
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem("selectedAvatar");
+        localStorage.removeItem("selectedAvatarFull");
+        localStorage.removeItem("videoSize");
+      }
+      router.push(`/dashboard/avatars?scriptId=${encodeURIComponent(script.id)}`);
+    } catch {
+      router.push(`/dashboard/avatars?scriptId=${encodeURIComponent(script.id)}`);
+    }
+  };
+
+  const handleGenerateVideo = async (avatarIdOverride?: string, useDefaults?: boolean) => {
     if (!script) return;
     setGeneratingVideo(true);
     setVideoProgress('Starting video generation...');
-    setShowVideoModal(false);
+
+    const effectiveAvatarId = avatarIdOverride ?? (hasCustomAvatar ? undefined : selectedAvatar);
+    const effectiveAspectRatio = useDefaults ? '9:16' : selectedAspectRatio;
+
+    let storedVoiceId: string | null = null;
+    let storedAvatarName: string | null = null;
+    let storedAvatarLook: string | null = null;
+    try {
+      const fromSession = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("selectedAvatarFull") : null;
+      const fromLocal = typeof localStorage !== "undefined" ? localStorage.getItem("selectedAvatarFull") : null;
+      const raw = fromSession ?? fromLocal;
+      if (raw && raw.startsWith("{")) {
+        const parsed = JSON.parse(raw) as { voice_id?: string; voice_name?: string; name?: string; selectedLook?: string };
+        if (parsed?.voice_id) storedVoiceId = parsed.voice_id;
+        if (parsed?.name) storedAvatarName = parsed.name;
+        if (parsed?.selectedLook) storedAvatarLook = parsed.selectedLook;
+      }
+    } catch {
+      // ignore
+    }
+    const effectiveVoiceId = storedVoiceId ?? (selectedVoice && selectedVoice !== "default" ? selectedVoice : undefined);
 
     try {
-      // Start video generation
-      setVideoProgress('Connecting to HeyGen...');
-      const response = await fetch('/api/videos/generate', {
+      setVideoProgress('Connecting to video service...');
+      const response = await fetch('/api/generate-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptId: script.id,
-          avatarId: hasCustomAvatar ? undefined : selectedAvatar,
+          avatarId: hasCustomAvatar ? undefined : effectiveAvatarId,
           ...(hasCustomAvatar && { useClonedVoice }),
-          ...((!hasCustomAvatar || !useClonedVoice) && { voiceId: selectedVoice }),
-          aspectRatio: selectedAspectRatio,
-          backgroundType: backgroundType === 'default' ? undefined : backgroundType,
-          backgroundValue: backgroundType === 'color' ? backgroundColor : backgroundType === 'image' ? backgroundImageUrl : undefined,
-          captionsEnabled,
-          captionStyle: captionsEnabled ? captionStyle : undefined,
+          ...((!hasCustomAvatar || !useClonedVoice) && effectiveVoiceId && { voiceId: effectiveVoiceId }),
+          ...(storedAvatarName && { avatarName: storedAvatarName }),
+          ...(storedAvatarLook && { avatarLook: storedAvatarLook }),
+          aspectRatio: effectiveAspectRatio,
+          ...(useDefaults ? {} : {
+            backgroundType: backgroundType === 'default' ? undefined : backgroundType,
+            backgroundValue: backgroundType === 'color' ? backgroundColor : backgroundType === 'image' ? backgroundImageUrl : undefined,
+            captionsEnabled,
+            captionStyle: captionsEnabled ? captionStyle : undefined,
+          }),
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        if (response.status === 402) {
-          toast.error(`Insufficient credits. Video generation costs ${data.creditsRequired} credits.`);
+        if (response.status === 402 && (data.code === "out_of_credits" || data.code === "trial_expired")) {
+          setUpgradeModal({
+            show: true,
+            reason: data.code === "trial_expired" ? "trial" : "credits",
+            creditsRemaining: data.creditsRemaining ?? 0,
+          });
+        } else if (response.status === 402) {
+          toast.error(data.error || `Insufficient credits. Video generation costs ${data.creditsRequired ?? 5} credits.`);
         } else {
           toast.error(data.error || 'Failed to start video generation');
+          if (data.creditsRefunded) {
+            toast.info('Your credits have been refunded.');
+          }
         }
+        setGeneratingVideo(false);
+        if (data.projectId) {
+          router.push(`/dashboard/projects/${data.projectId}`);
+        }
+        return;
+      }
+
+      toast.success('Video generation started! Redirecting to project...');
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("credits-updated"));
+      }
+      if (data.projectId) {
+        router.push(`/dashboard/projects/${data.projectId}`);
         setGeneratingVideo(false);
         return;
       }
 
-      toast.success('Video generation started!');
       setVideoProgress('Processing... this may take 2 to 5 minutes.');
-
       const scriptIdForPoll = script?.id?.trim?.();
       if (!scriptIdForPoll) {
         toast.error('Invalid script; cannot poll status.');
@@ -404,29 +513,18 @@ export default function ScriptViewPage() {
         return;
       }
 
-      // Poll for status every 10 seconds
       const pollStatus = async () => {
         let attempts = 0;
-        const maxAttempts = 180; // 30 minutes (10s intervals)
-
+        const maxAttempts = 180;
         while (attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 10000));
           attempts++;
           setVideoProgress(`Processing... (${attempts * 10}s elapsed)`);
-
           try {
-            const statusResponse = await fetch(`/api/videos/generate?scriptId=${encodeURIComponent(scriptIdForPoll)}`);
+            const statusResponse = await fetch(`/api/scripts/${scriptIdForPoll}/generate-video`);
             const statusData = await statusResponse.json();
-
             if (statusData.status === 'completed') {
-              // Update local script state
-              setScript(prev => prev ? {
-                ...prev,
-                generatedVideoUrl: statusData.videoUrl,
-                videoStatus: 'completed',
-                status: 'video_ready',
-              } : null);
-
+              setScript(prev => prev ? { ...prev, generatedVideoUrl: statusData.videoUrl, videoStatus: 'completed', status: 'video_ready' } : null);
               toast.success('Video generated successfully!');
               setGeneratingVideo(false);
               setVideoProgress('');
@@ -437,7 +535,6 @@ export default function ScriptViewPage() {
               }
               return;
             }
-
             if (statusData.status === 'failed') {
               toast.error(statusData.error || 'Video generation failed');
               setGeneratingVideo(false);
@@ -448,14 +545,10 @@ export default function ScriptViewPage() {
             console.error('Status check failed:', error);
           }
         }
-
-        // Timeout
         toast.error('Video generation timed out. Please check back later.');
         setGeneratingVideo(false);
         setVideoProgress('');
       };
-
-      // Start polling
       pollStatus();
 
     } catch (error) {
@@ -582,7 +675,7 @@ export default function ScriptViewPage() {
               <div
                 className="prose prose-lg max-w-none text-gray-800 leading-relaxed"
                 dangerouslySetInnerHTML={{
-                  __html: formatScriptContent(script.content),
+                  __html: formatScriptContent(getDisplayScript(script.content) || script.content),
                 }}
               />
             )}
@@ -657,12 +750,12 @@ export default function ScriptViewPage() {
               <Button
                 variant="secondary"
                 size="lg"
-                onClick={() => setShowVideoModal(true)}
+                onClick={handleGenerateVideoClick}
                 disabled={generatingVideo}
                 leftIcon={generatingVideo ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
                 className="flex-1 sm:flex-none"
               >
-                {generatingVideo ? videoProgress || 'Generating...' : 'Generate Video'}
+                {generatingVideo ? (videoProgress || 'Generating...') : 'Generate Video'}
                 {!generatingVideo && (
                   <span className="ml-2 text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">5 credits</span>
                 )}
@@ -763,12 +856,14 @@ export default function ScriptViewPage() {
               What's Next?
             </h3>
             <div className="space-y-3">
-              <Link href={`/dashboard/avatars?script=${script.id}`}>
-                <button className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/20 hover:from-primary/10 hover:to-secondary/10 transition-colors text-left">
-                  <span className="font-medium text-gray-900">Create video with this script</span>
-                  <ExternalLink className="h-4 w-4 text-primary" />
-                </button>
-              </Link>
+              <button
+                type="button"
+                onClick={handleGenerateVideoClick}
+                className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/20 hover:from-primary/10 hover:to-secondary/10 transition-colors text-left"
+              >
+                <span className="font-medium text-gray-900">Create video with this script</span>
+                <ExternalLink className="h-4 w-4 text-primary" />
+              </button>
               <button
                 onClick={() => setShowRegenerateModal(true)}
                 className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-left"
@@ -840,313 +935,13 @@ export default function ScriptViewPage() {
         loading={regenerating}
       />
 
-      {/* Video Generation Modal */}
-      <Modal
-        isOpen={showVideoModal}
-        onClose={() => setShowVideoModal(false)}
-        title="Generate AI Video"
-        size="lg"
-      >
-        <div className="space-y-6">
-          {/* Info Banner */}
-          <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                <Play className="h-5 w-5 text-violet-600" />
-              </div>
-              <div>
-                <p className="font-medium text-violet-900">AI Avatar Video</p>
-                <p className="text-sm text-violet-700 mt-1">
-                  Select an avatar and voice to create your professional video.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {loadingOptions ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
-            </div>
-          ) : (
-            <>
-              {/* Avatar Selection */}
-              {!hasCustomAvatar && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Select Avatar
-                  </label>
-                  <div className="grid grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2">
-                    {availableAvatars.map((avatar) => (
-                      <button
-                        key={avatar.avatar_id}
-                        onClick={() => setSelectedAvatar(avatar.avatar_id)}
-                        className={cn(
-                          "relative rounded-xl border-2 overflow-hidden transition-all group",
-                          selectedAvatar === avatar.avatar_id
-                            ? "border-violet-500 ring-2 ring-violet-200"
-                            : "border-gray-200 hover:border-violet-300"
-                        )}
-                      >
-                        {avatar.preview_image_url ? (
-                          <img
-                            src={avatar.preview_image_url}
-                            alt={avatar.avatar_name}
-                            className="w-full h-24 object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-24 bg-gradient-to-br from-violet-100 to-violet-50 flex items-center justify-center">
-                            <User className="h-8 w-8 text-violet-400" />
-                          </div>
-                        )}
-                        <div className="p-2 bg-white">
-                          <p className="text-xs font-medium text-gray-900 truncate">
-                            {avatar.avatar_name}
-                          </p>
-                          {avatar.gender && (
-                            <p className="text-[10px] text-gray-500 capitalize">{avatar.gender}</p>
-                          )}
-                        </div>
-                        {selectedAvatar === avatar.avatar_id && (
-                          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-violet-500 flex items-center justify-center">
-                            <Check className="h-4 w-4 text-white" />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Voice Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Voice
-                </label>
-                {hasCustomAvatar ? (
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useClonedVoice}
-                        onChange={(e) => setUseClonedVoice(e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-                      />
-                      <span className="text-sm text-gray-700">Use my cloned voice (from avatar)</span>
-                    </label>
-                    {useClonedVoice ? (
-                      <p className="px-4 py-3 rounded-xl border border-violet-200 bg-violet-50 text-violet-800 text-sm">
-                        Using your cloned voice from your avatar.
-                      </p>
-                    ) : (
-                      <select
-                        value={selectedVoice}
-                        onChange={(e) => setSelectedVoice(e.target.value)}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      >
-                        {availableVoices.length > 0 ? (
-                          availableVoices.slice(0, 10).map((v) => (
-                            <option key={v.voice_id} value={v.voice_id}>
-                              {v.name || v.display_name || v.voice_id}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="default">Default</option>
-                        )}
-                      </select>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-xs text-gray-500 mb-2">Select a pre-made voice</p>
-                    <select
-                      value={selectedVoice}
-                      onChange={(e) => setSelectedVoice(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                    >
-                      {availableVoices.length > 0 ? (
-                        availableVoices.slice(0, 10).map((v) => (
-                          <option key={v.voice_id} value={v.voice_id}>
-                            {v.name || v.display_name || v.voice_id}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="default">Default</option>
-                      )}
-                    </select>
-                  </>
-                )}
-              </div>
-
-              {/* Background - collapsible */}
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setSectionBackgroundOpen(!sectionBackgroundOpen)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left"
-                >
-                  <span className="flex items-center gap-2 font-medium text-gray-900">
-                    <Palette className="h-4 w-4 text-violet-600" />
-                    Background
-                  </span>
-                  {sectionBackgroundOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
-                {sectionBackgroundOpen && (
-                  <div className="p-4 space-y-4 border-t border-gray-200">
-                    <label className="block text-sm font-medium text-gray-700">Type</label>
-                    <select
-                      value={backgroundType}
-                      onChange={(e) => setBackgroundType(e.target.value as typeof backgroundType)}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-violet-500"
-                    >
-                      <option value="default">Default (HeyGen)</option>
-                      <option value="color">Solid color</option>
-                      <option value="green_screen">Green screen (transparent)</option>
-                      <option value="image">Image URL</option>
-                    </select>
-                    {backgroundType === "color" && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="color"
-                            value={backgroundColor}
-                            onChange={(e) => setBackgroundColor(e.target.value)}
-                            className="w-12 h-10 rounded border border-gray-200 cursor-pointer"
-                          />
-                          <input
-                            type="text"
-                            value={backgroundColor}
-                            onChange={(e) => setBackgroundColor(e.target.value)}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono"
-                            placeholder="#1f2937"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {backgroundType === "image" && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
-                        <input
-                          type="url"
-                          value={backgroundImageUrl}
-                          onChange={(e) => setBackgroundImageUrl(e.target.value)}
-                          placeholder="https://example.com/background.jpg"
-                          className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-violet-500"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Captions - collapsible */}
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setSectionCaptionsOpen(!sectionCaptionsOpen)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left"
-                >
-                  <span className="flex items-center gap-2 font-medium text-gray-900">
-                    <Type className="h-4 w-4 text-violet-600" />
-                    Captions & subtitles
-                  </span>
-                  {sectionCaptionsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
-                {sectionCaptionsOpen && (
-                  <div className="p-4 space-y-4 border-t border-gray-200">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={captionsEnabled}
-                        onChange={(e) => setCaptionsEnabled(e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-                      />
-                      <span className="text-sm text-gray-700">Add captions/subtitles to video</span>
-                    </label>
-                    {captionsEnabled && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Caption style</label>
-                        <select
-                          value={captionStyle}
-                          onChange={(e) => setCaptionStyle(e.target.value as typeof captionStyle)}
-                          className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-violet-500"
-                        >
-                          <option value="open">Open (burned-in, always visible)</option>
-                          <option value="bottom">Bottom</option>
-                          <option value="top">Top</option>
-                          <option value="closed">Closed captions</option>
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Aspect Ratio */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Video Format
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { value: '9:16', label: 'Portrait', desc: 'TikTok/Reels' },
-                    { value: '16:9', label: 'Landscape', desc: 'YouTube' },
-                    { value: '1:1', label: 'Square', desc: 'Instagram' },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setSelectedAspectRatio(option.value as typeof selectedAspectRatio)}
-                      className={cn(
-                        "p-3 rounded-xl border-2 text-center transition-all",
-                        selectedAspectRatio === option.value
-                          ? "border-violet-500 bg-violet-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      )}
-                    >
-                      <p className="font-medium text-sm">{option.label}</p>
-                      <p className="text-xs text-gray-500">{option.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Cost Info */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-amber-600" />
-                    <span className="font-medium text-amber-900">Cost</span>
-                  </div>
-                  <span className="text-lg font-bold text-amber-900">5 credits</span>
-                </div>
-                <p className="text-sm text-amber-700 mt-1">
-                  Video generation typically takes 5-10 minutes
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  variant="ghost"
-                  className="flex-1"
-                  onClick={() => setShowVideoModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  onClick={handleGenerateVideo}
-                  disabled={!hasCustomAvatar && !selectedAvatar}
-                  leftIcon={<Sparkles className="h-5 w-5" />}
-                >
-                  Generate Video
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </Modal>
+      {upgradeModal?.show && (
+        <UpgradeModal
+          onClose={() => setUpgradeModal(null)}
+          reason={upgradeModal.reason}
+          creditsRemaining={upgradeModal.creditsRemaining}
+        />
+      )}
     </div>
   );
 }

@@ -72,9 +72,8 @@ export async function POST(request: NextRequest) {
           break
         }
 
-        const user = await prisma.user.findUnique({
+        const user = await prisma.users.findUnique({
           where: { email },
-          include: { subscriptions: true },
         })
 
         if (!user) {
@@ -100,13 +99,7 @@ export async function POST(request: NextRequest) {
             const pm = await stripeClient!.paymentMethods.retrieve(defaultPmId)
             if (pm.card?.fingerprint) {
               paymentMethodFingerprint = pm.card.fingerprint
-              const other = await prisma.subscription.findFirst({
-                where: {
-                  paymentMethodFingerprint: pm.card.fingerprint,
-                  userId: { not: user.id },
-                },
-              })
-              if (other) duplicatePaymentMethod = true
+              // Duplicate card check: no subscription table; skip or use subscription_events if needed
             }
           } catch (e) {
             console.warn("[Stripe webhook] Could not retrieve payment method fingerprint:", e)
@@ -117,59 +110,30 @@ export async function POST(request: NextRequest) {
         const planConfig = PLANS[planKey]
         const planName = planConfig.name
 
-        await prisma.$transaction([
-          prisma.subscription.upsert({
-            where: { userId: user.id },
-            update: {
-              stripeCustomerId: customerId,
-              stripeSubscriptionId: subscriptionId,
-              plan: planKey,
-              status: "trialing",
-              trialEndsAt: trialEnd,
-              currentPeriodStart: now,
-              currentPeriodEnd: periodEnd,
-              paymentMethodFingerprint: paymentMethodFingerprint ?? undefined,
-              duplicatePaymentMethod,
-              updatedAt: now,
-            },
-            create: {
-              userId: user.id,
-              plan: planKey,
-              status: "trialing",
-              stripeCustomerId: customerId,
-              stripeSubscriptionId: subscriptionId,
-              trialEndsAt: trialEnd,
-              currentPeriodStart: now,
-              currentPeriodEnd: periodEnd,
-              paymentMethodFingerprint: paymentMethodFingerprint ?? undefined,
-              duplicatePaymentMethod,
-            },
-          }),
-          prisma.user.update({
-            where: { id: user.id },
-            data: {
-              payment_status: "paid",
-              stripe_customer_id: customerId,
-              stripe_subscription_id: subscriptionId,
-              subscription_status: "trialing",
-              ...(duplicatePaymentMethod
-                ? {}
-                : {
-                    plan: planKey,
-                    videoCredits: planConfig.videoCredits,
-                    videoCreditsUsed: 0,
-                    genieEdits: planConfig.genieEdits,
-                    genieEditsUsed: 0,
-                    customAvatarsLimit: planConfig.customAvatarsLimit,
-                    customAvatarsUsed: 0,
-                    maxVideoLength: planConfig.maxVideoLength,
-                    exportQuality: planConfig.exportQuality,
-                    hasWatermark: planConfig.hasWatermark,
-                    credits: planConfig.videoCredits,
-                  }),
-            },
-          }),
-        ])
+        await prisma.users.update({
+          where: { id: user.id },
+          data: {
+            payment_status: "paid",
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subscriptionId,
+            plan_status: "trialing",
+            trial_ends_at: trialEnd,
+            plan_start_date: now,
+            updated_at: now,
+            ...(duplicatePaymentMethod
+              ? {}
+              : {
+                  plan: planKey,
+                  video_credits: planConfig.videoCredits,
+                  video_credits_used: 0,
+                  genie_edits: planConfig.genieEdits,
+                  genie_edits_used_this_month: 0,
+                  custom_avatars_limit: planConfig.customAvatarsLimit,
+                  custom_avatars_used: 0,
+                  credits: planConfig.videoCredits,
+                }),
+          },
+        })
 
         if (duplicatePaymentMethod) {
           console.log("[Stripe webhook] checkout.session.completed: duplicate payment method for", email)
@@ -197,11 +161,11 @@ export async function POST(request: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription
         const subId = subscription.id
 
-        const existing = await prisma.subscription.findFirst({
-          where: { stripeSubscriptionId: subId },
+        const user = await prisma.users.findFirst({
+          where: { stripe_subscription_id: subId },
         })
 
-        if (!existing) break
+        if (!user) break
 
         const status =
           subscription.status === "active"
@@ -212,26 +176,19 @@ export async function POST(request: NextRequest) {
               ? "cancelled"
               : subscription.status === "past_due"
                 ? "past_due"
-                : existing.status
+                : user.plan_status ?? "active"
 
-        await prisma.$transaction([
-          prisma.subscription.update({
-            where: { id: existing.id },
-            data: {
-              status,
-              trialEndsAt: subscription.trial_end
-                ? new Date(subscription.trial_end * 1000)
-                : null,
-              currentPeriodStart: new Date(subscription.current_period_start * 1000),
-              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-              updatedAt: new Date(),
-            },
-          }),
-          prisma.user.update({
-            where: { id: existing.userId },
-            data: { subscription_status: status },
-          }),
-        ])
+        await prisma.users.update({
+          where: { id: user.id },
+          data: {
+            plan_status: status,
+            trial_ends_at: subscription.trial_end
+              ? new Date(subscription.trial_end * 1000)
+              : null,
+            plan_start_date: new Date(subscription.current_period_start * 1000),
+            updated_at: new Date(),
+          },
+        })
 
         console.log("[Stripe webhook] customer.subscription.updated:", subId)
         break
@@ -241,21 +198,15 @@ export async function POST(request: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription
         const subId = subscription.id
 
-        const existing = await prisma.subscription.findFirst({
-          where: { stripeSubscriptionId: subId },
+        const user = await prisma.users.findFirst({
+          where: { stripe_subscription_id: subId },
         })
 
-        if (existing) {
-          await prisma.$transaction([
-            prisma.subscription.update({
-              where: { id: existing.id },
-              data: { status: "cancelled", updatedAt: new Date() },
-            }),
-            prisma.user.update({
-              where: { id: existing.userId },
-              data: { subscription_status: "cancelled" },
-            }),
-          ])
+        if (user) {
+          await prisma.users.update({
+            where: { id: user.id },
+            data: { plan_status: "cancelled", updated_at: new Date() },
+          })
           console.log("[Stripe webhook] customer.subscription.deleted:", subId)
         }
         break
@@ -267,38 +218,37 @@ export async function POST(request: NextRequest) {
 
         if (!subscriptionId) break
 
-        const existing = await prisma.subscription.findFirst({
-          where: { stripeSubscriptionId: subscriptionId },
-          include: { user: true },
+        const user = await prisma.users.findFirst({
+          where: { stripe_subscription_id: subscriptionId },
         })
 
-        if (existing) {
-          const planKey = (existing.user.plan ?? "creator") as PlanKey
+        if (user) {
+          const planKey = (user.plan ?? "creator") as PlanKey
           const planConfig = PLANS[planKey] ?? PLANS.creator
-          const updated = await prisma.user.update({
-            where: { id: existing.userId },
+          const updated = await prisma.users.update({
+            where: { id: user.id },
             data: {
               payment_status: "paid",
-              subscription_status: "active",
-              videoCredits: planConfig.videoCredits,
-              videoCreditsUsed: 0,
-              genieEdits: planConfig.genieEdits,
-              genieEditsUsed: 0,
+              plan_status: "active",
+              video_credits: planConfig.videoCredits,
+              video_credits_used: 0,
+              genie_edits: planConfig.genieEdits,
+              genie_edits_used_this_month: 0,
               credits: planConfig.videoCredits,
             },
-            select: { videoCredits: true, credits: true },
+            select: { video_credits: true, credits: true },
           })
-          console.log("[Stripe webhook] invoice.payment_succeeded: reset credits for user", existing.userId, "plan", planKey, "videoCredits", updated.videoCredits)
+          console.log("[Stripe webhook] invoice.payment_succeeded: reset credits for user", user.id, "plan", planKey, "videoCredits", updated.video_credits)
           trackCreditsUsage({
-            user_id: existing.userId,
+            user_id: user.id,
             amount: planConfig.videoCredits,
             reason: "monthly_renewal",
             reference_type: "stripe_invoice",
             reference_id: invoice.id,
-            balance_after: updated.videoCredits,
+            balance_after: updated.video_credits ?? 0,
           })
           trackSubscriptionEvent({
-            user_id: existing.userId,
+            user_id: user.id,
             event_type: "invoice_payment_succeeded",
             plan: planKey,
             stripe_event_id: event.id,

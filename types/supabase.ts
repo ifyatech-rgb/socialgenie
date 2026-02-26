@@ -27,6 +27,12 @@ export interface Database {
           email: string
           name: string | null
           image: string | null
+          avatar_url: string | null
+          plan: string | null
+          video_credits: number | null
+          genie_edits: number | null
+          custom_avatars_used: number | null
+          custom_avatars_limit: number | null
           created_at: string
           updated_at: string
         }
@@ -35,6 +41,12 @@ export interface Database {
           email: string
           name?: string | null
           image?: string | null
+          avatar_url?: string | null
+          plan?: string | null
+          video_credits?: number | null
+          genie_edits?: number | null
+          custom_avatars_used?: number | null
+          custom_avatars_limit?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -43,6 +55,12 @@ export interface Database {
           email?: string
           name?: string | null
           image?: string | null
+          avatar_url?: string | null
+          plan?: string | null
+          video_credits?: number | null
+          genie_edits?: number | null
+          custom_avatars_used?: number | null
+          custom_avatars_limit?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -87,9 +105,9 @@ export interface Database {
           id: string
           user_id: string
           name: string
-          did_actor_id: string
+          type: string
+          provider_avatar_id: string
           status: string
-          thumbnail_url: string | null
           created_at: string
           updated_at: string
         }
@@ -97,9 +115,9 @@ export interface Database {
           id?: string
           user_id: string
           name: string
-          did_actor_id: string
+          type: string
+          provider_avatar_id: string
           status?: string
-          thumbnail_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -107,9 +125,59 @@ export interface Database {
           id?: string
           user_id?: string
           name?: string
-          did_actor_id?: string
+          type?: string
+          provider_avatar_id?: string
           status?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      generated_videos: {
+        Row: {
+          id: string
+          user_id: string
+          script_id: string | null
+          generated_video_id: string
+          video_provider: string
+          video_status: string
+          video_progress: number | null
+          generated_video_url: string | null
+          thumbnail_url: string | null
+          duration: number | null
+          video_error: string | null
+          project_name: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          script_id?: string | null
+          generated_video_id: string
+          video_provider: string
+          video_status?: string
+          video_progress?: number | null
+          generated_video_url?: string | null
           thumbnail_url?: string | null
+          duration?: number | null
+          video_error?: string | null
+          project_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          script_id?: string | null
+          generated_video_id?: string
+          video_provider?: string
+          video_status?: string
+          video_progress?: number | null
+          generated_video_url?: string | null
+          thumbnail_url?: string | null
+          duration?: number | null
+          video_error?: string | null
+          project_name?: string | null
           created_at?: string
           updated_at?: string
         }

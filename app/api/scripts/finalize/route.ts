@@ -17,27 +17,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing scriptId" }, { status: 400 });
     }
 
-    const script = await prisma.script.findUnique({
+    const script = await prisma.scripts.findUnique({
       where: { id: scriptId },
     });
 
-    if (!script || script.userId !== session.user.id) {
+    if (!script || script.user_id !== session.user.id) {
       return NextResponse.json({ error: "Script not found" }, { status: 404 });
     }
 
-    if (script.lifecycleStatus === "finalized") {
+    if (script.lifecycle_status === "finalized") {
       return NextResponse.json(
         { error: "Script already finalized" },
         { status: 400 }
       );
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: session.user.id },
       select: { credits: true },
     });
 
-    if (!user || user.credits < 1) {
+    if (!user || (user.credits ?? 0) < 1) {
       return NextResponse.json(
         { error: "No credits remaining. Need 1 credit to finalize.", creditsRemaining: user?.credits ?? 0 },
         { status: 402 }
@@ -45,15 +45,15 @@ export async function POST(request: NextRequest) {
     }
 
     const [updatedScript, updatedUser] = await prisma.$transaction([
-      prisma.script.update({
+      prisma.scripts.update({
         where: { id: scriptId },
         data: {
-          lifecycleStatus: "finalized",
-          creditCharged: true,
-          finalizedAt: new Date(),
+          lifecycle_status: "finalized",
+          credit_charged: true,
+          finalized_at: new Date(),
         },
       }),
-      prisma.user.update({
+      prisma.users.update({
         where: { id: session.user.id },
         data: { credits: { decrement: 1 } },
         select: { credits: true },
@@ -66,16 +66,16 @@ export async function POST(request: NextRequest) {
       reason: "script_finalized",
       reference_type: "script",
       reference_id: scriptId,
-      balance_after: updatedUser.credits,
+      balance_after: updatedUser.credits ?? 0,
     }).catch(() => {});
 
     return NextResponse.json({
       success: true,
       message: "Script finalized successfully",
-      creditsRemaining: updatedUser.credits,
+      creditsRemaining: updatedUser.credits ?? 0,
       script: {
         id: updatedScript.id,
-        lifecycleStatus: updatedScript.lifecycleStatus,
+        lifecycleStatus: updatedScript.lifecycle_status,
       },
     });
   } catch (error) {

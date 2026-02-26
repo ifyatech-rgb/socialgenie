@@ -3,7 +3,8 @@ import { getAuthUserEmail } from "@/lib/auth";
 import { getHeyGenClient } from "@/lib/heygenClient";
 import { prisma } from "@/lib/prisma";
 import { trackAvatarEvent, trackError } from "@/lib/tracking";
-import { canAccessApp } from "@/lib/payment";
+import { canAccessApp, canUseFeature } from "@/lib/payment";
+import { syncAvatarToSupabase, syncUserToSupabase } from "@/lib/supabase-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -16,14 +17,19 @@ export async function POST(request: NextRequest) {
     if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const emailNormalized = email.trim().toLowerCase();
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: emailNormalized },
       select: {
         id: true,
+        name: true,
+        image: true,
         payment_status: true,
-        customAvatarsLimit: true,
-        customAvatarsUsed: true,
-        customAvatarIds: true,
+        plan: true,
+        video_credits: true,
+        credits: true,
+        created_at: true,
+        custom_avatars_limit: true,
+        custom_avatars_used: true,
       },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -33,9 +39,26 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+    const featureCheck = canUseFeature({
+      plan: user.plan,
+      videoCredits: user.video_credits,
+      credits: user.credits,
+      createdAt: user.created_at ?? new Date(),
+    });
+    if (!featureCheck.allowed) {
+      const creditsRemaining = user.video_credits ?? user.credits ?? 0;
+      return NextResponse.json(
+        {
+          error: featureCheck.error,
+          code: featureCheck.code,
+          creditsRemaining,
+        },
+        { status: 402 }
+      );
+    }
 
-    const limit = user.customAvatarsLimit ?? 1;
-    const used = user.customAvatarsUsed ?? 0;
+    const limit = user.custom_avatars_limit ?? 1;
+    const used = user.custom_avatars_used ?? 0;
     if (used >= limit) {
       return NextResponse.json(
         {
@@ -177,30 +200,37 @@ export async function POST(request: NextRequest) {
       status: result.status,
     });
 
-    const rawIds = user.customAvatarIds;
+    const rawIds = (user as { custom_avatar_ids?: unknown }).custom_avatar_ids ?? [];
     const avatarIds: string[] = Array.isArray(rawIds) ? (rawIds as string[]) : [];
     const newUsed = used + 1;
     if (result.avatarId) avatarIds.push(result.avatarId);
 
+    // No avatar model in schema; track usage only
     if (result.avatarId) {
-      await prisma.avatar.create({
-        data: {
-          userId: user.id,
-          name: avatarName,
-          type: avatarType,
-          status: result.status ?? "processing",
-          heygenAvatarId: result.avatarId,
-        },
-      });
+      syncAvatarToSupabase({
+        id: result.avatarId,
+        user_id: user.id,
+        name: avatarName,
+        type: avatarType,
+        provider_avatar_id: result.avatarId,
+        status: result.status ?? "processing",
+        created_at: new Date().toISOString(),
+      }).catch(() => {});
     }
 
-    await prisma.user.update({
+    await prisma.users.update({
       where: { id: user.id },
-      data: {
-        customAvatarsUsed: newUsed,
-        customAvatarIds: avatarIds,
-      },
+      data: { custom_avatars_used: newUsed },
     });
+
+    syncUserToSupabase({
+      id: user.id,
+      email: emailNormalized,
+      name: user.name ?? undefined,
+      avatar_url: user.image ?? undefined,
+      custom_avatars_used: newUsed,
+      custom_avatars_limit: limit,
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,
@@ -216,7 +246,7 @@ export async function POST(request: NextRequest) {
     const errMsg = error instanceof Error ? error.message : "Failed to create avatar";
     console.error("[HeyGen create-avatar]", errMsg);
     const email = await getAuthUserEmail(request).catch(() => null);
-    const user = email ? await prisma.user.findUnique({ where: { email }, select: { id: true } }).catch(() => null) : null;
+    const user = email ? await prisma.users.findUnique({ where: { email }, select: { id: true } }).catch(() => null) : null;
     trackError({
       user_id: user?.id ?? null,
       endpoint: "/api/heygen/create-avatar",

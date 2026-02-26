@@ -9,275 +9,329 @@ datasource db {
   schemas   = ["public"]
 }
 
-model Profile {
-  id             String    @id @db.Uuid
-  email          String    @unique
-  full_name      String?
-  role           String    @default("user")
-  credits        Int?
-  plan           String?
-  avatar_url     String?
-  status         String?
-  created_at     DateTime? @db.Timestamptz(6)
-  updated_at     DateTime? @db.Timestamptz(6)
-  last_active_at DateTime? @db.Timestamptz(6)
+model accounts {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id             String    @db.Uuid
+  type                String
+  provider            String
+  provider_account_id String
+  refresh_token       String?
+  access_token        String?
+  expires_at          BigInt?
+  token_type          String?
+  scope               String?
+  id_token            String?
+  session_state       String?
+  created_at          DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime? @default(now()) @db.Timestamptz(6)
+  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@map("profiles")
+  @@unique([provider, provider_account_id])
   @@schema("public")
 }
 
-model User {
-  id                     String           @id @default(cuid())
-  email                  String           @unique
-  name                   String?
-  image                  String?
-  password               String?
-  emailVerified          DateTime?
-  credits                Int              @default(10)
-  plan                   String           @default("trial")
-  niche                  String?
-  platforms              String?
-  onboardingCompleted    Boolean          @default(false)
-  avatarId               String?
-  avatarUrl              String?
-  avatarStatus           String?
-  avatarVoiceId          String?
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
-  payment_status         String           @default("pending")
-  stripe_customer_id     String?
+model brand_voice_profiles {
+  id                 String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id            String    @db.Uuid
+  name               String
+  description        String?
+  sample_scripts     String[]
+  tone               String?
+  sentence_length    String?
+  vocabulary_level   String?
+  personality_traits String[]
+  common_phrases     String[]
+  voice_profile      Json?
+  is_default         Boolean?  @default(false)
+  times_used         Int?      @default(0)
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime? @default(now()) @db.Timestamptz(6)
+  users              users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([is_default], map: "idx_brand_voice_is_default")
+  @@index([user_id], map: "idx_brand_voice_user_id")
+  @@schema("public")
+}
+
+model competitor_analyses {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id           String    @db.Uuid
+  video_url         String
+  platform          String?
+  views             BigInt?
+  likes             Int?
+  comments          Int?
+  shares            Int?
+  transcript        String?
+  viral_score       Decimal?  @db.Decimal(3, 1)
+  why_viral         String[]
+  hook_type         String?
+  structure         String?
+  key_elements      String[]
+  emotion_triggered String?
+  script_breakdown  Json?
+  analysis_tokens   Int?
+  analysis_cost     Decimal?  @db.Decimal(10, 4)
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  users             users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_competitor_analyses_created_at")
+  @@index([platform], map: "idx_competitor_analyses_platform")
+  @@index([user_id], map: "idx_competitor_analyses_user_id")
+  @@schema("public")
+}
+
+model cost_logs {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id             String?   @db.Uuid
+  cost_type           String
+  ai_model            String?
+  tokens_used         Int?
+  ai_cost             Decimal?  @db.Decimal(10, 6)
+  user_plan           String?
+  revenue_allocated   Decimal?  @db.Decimal(10, 6)
+  profit              Decimal?  @db.Decimal(10, 6)
+  profit_margin       Decimal?  @db.Decimal(5, 2)
+  related_entity_type String?
+  related_entity_id   String?   @db.Uuid
+  created_at          DateTime? @default(now()) @db.Timestamptz(6)
+  users               users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([cost_type], map: "idx_cost_logs_cost_type")
+  @@index([created_at], map: "idx_cost_logs_created_at")
+  @@index([user_id], map: "idx_cost_logs_user_id")
+  @@schema("public")
+}
+
+model scripts {
+  id                  String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id             String     @db.Uuid
+  topic               String
+  platform            String
+  content_style       String?
+  target_audience     String?
+  hook_type           String?
+  brand_voice         String?
+  cta                 String?
+  script_text         String
+  hook                String?
+  body                String?
+  call_to_action      String?
+  word_count          Int?
+  estimated_duration  Int?
+  genie_edits_count   Int?       @default(0)
+  chat_history        Json?      @default("[]")
+  viral_score         Decimal?   @db.Decimal(3, 1)
+  viral_breakdown     Json?
+  status              String?    @default("draft")
+  is_favorite         Boolean?   @default(false)
+  views               Int?
+  likes               Int?
+  comments            Int?
+  shares              Int?
+  engagement_rate     Decimal?   @db.Decimal(5, 2)
+  ai_model            String?    @default("claude-sonnet-4")
+  generation_tokens   Int?
+  generation_cost     Decimal?   @db.Decimal(10, 4)
+  created_at          DateTime?  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?  @default(now()) @db.Timestamptz(6)
+  finalized_at        DateTime?  @db.Timestamptz(6)
+  credit_charged      Boolean?   @default(false)
+  lifecycle_status    String?    @default("draft")
+  generated_video_id  String?    @map("generated_video_id")
+  video_status        String?    @map("video_status")
+  generated_video_url String?    @map("generated_video_url")
+  video_provider      String?    @map("video_provider")
+  video_error         String?    @map("video_error")
+  projects            projects[]
+  users               users      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_scripts_created_at")
+  @@index([is_favorite], map: "idx_scripts_is_favorite")
+  @@index([platform], map: "idx_scripts_platform")
+  @@index([status], map: "idx_scripts_status")
+  @@index([user_id], map: "idx_scripts_user_id")
+  @@index([viral_score], map: "idx_scripts_viral_score")
+  @@schema("public")
+}
+
+model sessions {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_token String    @unique
+  user_id       String    @db.Uuid
+  expires       DateTime  @db.Timestamptz(6)
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
+  users         users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model subscription_events {
+  id                     String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id                String?   @db.Uuid
+  event_type             String
+  plan_from              String?
+  plan_to                String?
   stripe_subscription_id String?
-  subscription_status    String?
-  customAvatarIds        Json?
-  customAvatarsLimit     Int              @default(1)
-  customAvatarsUsed      Int              @default(0)
-  exportQuality          String           @default("720p")
-  genieEdits             Int              @default(5)
-  genieEditsUsed         Int              @default(0)
-  hasWatermark           Boolean          @default(true)
-  maxVideoLength         Int              @default(60)
-  videoCredits           Int              @default(3)
-  videoCreditsUsed       Int              @default(0)
-  accounts               Account[]
-  activities             Activity[]
-  avatars                Avatar[]
-  generatedVideos        GeneratedVideo[]
-  onboarding             Onboarding?
-  scripts                Script[]
-  sessions               Session[]
-  subscriptions          Subscription?
-  trainingVideos         TrainingVideo[]
-  videos                 Video[]
+  stripe_event_id        String?
+  stripe_invoice_id      String?
+  amount                 Decimal?  @db.Decimal(10, 2)
+  currency               String?   @default("usd")
+  metadata               Json?
+  created_at             DateTime? @default(now()) @db.Timestamptz(6)
+  users                  users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([email])
-  @@index([plan])
+  @@index([created_at], map: "idx_subscription_events_created_at")
+  @@index([event_type], map: "idx_subscription_events_event_type")
+  @@index([user_id], map: "idx_subscription_events_user_id")
   @@schema("public")
 }
 
-model Onboarding {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  describeYou        String?
-  mainGoal           String?
-  videosPerMonth     String?
-  usedAiTools        String?
-  whenPlanningStart  String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model user_activity_log {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id       String?   @db.Uuid
+  activity_type String
+  description   String?
+  ip_address    String?   @db.Inet
+  user_agent    String?
+  metadata      Json?
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  users         users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([activity_type], map: "idx_activity_log_activity_type")
+  @@index([created_at], map: "idx_activity_log_created_at")
+  @@index([user_id], map: "idx_activity_log_user_id")
   @@schema("public")
 }
 
-model TrainingVideo {
-  id               String   @id @default(cuid())
-  userId           String
-  videoUrl         String
-  didAvatarId      String?
-  processingStatus String   @default("pending")
-  processingError  String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                          String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email                       String                 @unique
+  name                        String?
+  password_hash               String?
+  email_verified              Boolean?               @default(false)
+  image                       String?
+  plan                        String?                @default("trial")
+  plan_status                 String?                @default("trialing")
+  plan_start_date             DateTime?              @db.Timestamptz(6)
+  trial_ends_at               DateTime?              @default(dbgenerated("(now() + '7 days'::interval)")) @db.Timestamptz(6)
+  scripts_per_month           Int?                   @default(5)
+  scripts_remaining           Int?                   @default(5)
+  scripts_used_this_month     Int?                   @default(0)
+  scripts_total_generated     Int?                   @default(0)
+  genie_edits_per_script      Int?                   @default(5)
+  genie_edits_used_this_month Int?                   @default(0)
+  max_script_length           Int?                   @default(45)
+  viral_score_predictor       Boolean?               @default(false)
+  competitor_analysis         Boolean?               @default(false)
+  brand_voice_training        Boolean?               @default(false)
+  trend_scanner               Boolean?               @default(false)
+  multi_variants              Boolean?               @default(false)
+  performance_tracker         Boolean?               @default(false)
+  batch_generation            Boolean?               @default(false)
+  content_calendar            Boolean?               @default(false)
+  api_access                  Boolean?               @default(false)
+  competitor_analysis_limit   Int?                   @default(0)
+  competitor_analysis_used    Int?                   @default(0)
+  brand_voice_profiles_limit  Int?                   @default(0)
+  brand_voice_profiles_used   Int?                   @default(0)
+  variants_count              Int?                   @default(0)
+  batch_size                  Int?                   @default(0)
+  stripe_customer_id          String?                @unique
+  stripe_subscription_id      String?
+  stripe_price_id             String?
+  onboarding_completed        Boolean?               @default(false)
+  niche                       String?
+  platform                    String?
+  main_challenge              String?
+  created_at                  DateTime?              @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime?              @default(now()) @db.Timestamptz(6)
+  last_login_at               DateTime?              @db.Timestamptz(6)
+  avatar_status               String?
+  avatar_url                  String?
+  credits                     Int?                   @default(10)
+  custom_avatars_limit        Int?                   @default(1)
+  custom_avatars_used         Int?                   @default(0)
+  genie_edits                 Int?                   @default(25)
+  payment_status              String?
+  video_credits               Int?                   @default(10)
+  video_credits_used          Int?                   @default(0)
+  accounts                    accounts[]
+  brand_voice_profiles        brand_voice_profiles[]
+  competitor_analyses         competitor_analyses[]
+  cost_logs                   cost_logs[]
+  projects                    projects[]
+  scripts                     scripts[]
+  sessions                    sessions[]
+  subscription_events         subscription_events[]
+  user_activity_log           user_activity_log[]
 
+  @@index([created_at], map: "idx_users_created_at")
+  @@index([email], map: "idx_users_email")
+  @@index([plan], map: "idx_users_plan")
+  @@index([plan_status], map: "idx_users_plan_status")
+  @@index([stripe_customer_id], map: "idx_users_stripe_customer")
+  @@index([stripe_subscription_id], map: "idx_users_stripe_subscription")
   @@schema("public")
 }
 
-model Activity {
-  id        String   @id @default(cuid())
-  userId    String
-  action    String
-  details   String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model projects {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id          String    @map("user_id") @db.Uuid
+  name             String
+  description      String?
+  script_id        String?   @map("script_id") @db.Uuid
+  script_text      String    @map("script_text")
+  avatar_id        String    @map("avatar_id")
+  avatar_name      String    @map("avatar_name")
+  avatar_look      String?   @map("avatar_look")
+  is_talking_photo Boolean? @default(false) @map("is_talking_photo")
+  status           String?   @default("pending")
+  video_id         String?   @map("video_id")
+  video_url        String?   @map("video_url")
+  thumbnail_url    String?   @map("thumbnail_url")
+  error_message    String?   @map("error_message")
+  provider_error   String?   @map("provider_error")
+  retry_count      Int?      @default(0) @map("retry_count")
+  credits_used     Int?      @default(5) @map("credits_used")
+  credits_refunded Boolean?  @default(false) @map("credits_refunded")
+  duration         Int?
+  platform         String?
+  created_at       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updated_at       DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+  completed_at     DateTime? @map("completed_at") @db.Timestamptz(6)
+  failed_at        DateTime? @map("failed_at") @db.Timestamptz(6)
+  scripts          scripts?  @relation(fields: [script_id], references: [id], onUpdate: NoAction)
+  users            users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([user_id], map: "idx_projects_user_id")
+  @@index([status], map: "idx_projects_status")
+  @@index([video_id], map: "idx_projects_video_id")
+  @@index([created_at], map: "idx_projects_created_at")
   @@schema("public")
 }
 
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@schema("public")
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@schema("public")
-}
-
-model VerificationToken {
+model verification_tokens {
   identifier String
   token      String   @unique
-  expires    DateTime
+  expires    DateTime @db.Timestamptz(6)
 
-  @@unique([identifier, token])
+  @@id([identifier, token])
   @@schema("public")
 }
 
-model Video {
-  id        String   @id @default(cuid())
-  userId    String
-  filename  String
-  url       String
-  duration  Int?
-  status    String   @default("uploaded")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  scripts   Script[]
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+/// Cache of HeyGen avatars with real default voice IDs (synced from HeyGen API).
+/// Never use display labels like "Default Voice" as voice_id — always use real HeyGen IDs from here.
+model heygen_avatar_cache {
+  heygen_avatar_id   String   @unique @map("heygen_avatar_id")
+  display_name       String   @map("display_name")
+  default_voice_id   String   @map("default_voice_id")
+  default_voice_name String   @map("default_voice_name")
+  preview_url        String?  @map("preview_url")
+  updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
-  @@schema("public")
-}
-
-model Script {
-  id                String           @id @default(cuid())
-  userId            String
-  videoId           String?
-  topic             String
-  platform          String
-  tone              String
-  length            Int
-  content           String
-  status            String           @default("generated")
-  generatedVideoId  String?
-  generatedVideoUrl String?
-  videoProvider     String?
-  videoStatus       String?
-  videoProgress     Int?
-  videoError        String?
-  projectName       String?
-  thumbnailUrl      String?
-  duration          Int?
-  views             Int              @default(0)
-  lastViewedAt      DateTime?
-  isFavorite        Boolean          @default(false)
-  tags              String[]         @default([])
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  chatHistory       Json?
-  creditCharged     Boolean          @default(false)
-  finalizedAt       DateTime?
-  lifecycleStatus   String           @default("draft")
-  refinementCount   Int              @default(0)
-  generatedVideos   GeneratedVideo[]
-  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video             Video?           @relation(fields: [videoId], references: [id])
-
-  @@index([userId])
-  @@index([lifecycleStatus])
-  @@index([createdAt])
-  @@index([userId, lifecycleStatus])
-  @@index([userId, createdAt])
-  @@schema("public")
-}
-
-model GeneratedVideo {
-  id                String   @id @default(cuid())
-  userId            String
-  scriptId          String
-  generatedVideoId  String
-  generatedVideoUrl String?
-  videoProvider     String   @default("heygen")
-  videoStatus       String?
-  videoProgress     Int?
-  videoError        String?
-  projectName       String?
-  thumbnailUrl      String?
-  duration          Int?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  script            Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([createdAt])
-  @@index([userId, createdAt])
-  @@schema("public")
-}
-
-model Subscription {
-  id                       String    @id @default(cuid())
-  userId                   String    @unique
-  plan                     String
-  status                   String
-  stripeCustomerId         String?
-  stripeSubscriptionId     String?
-  trialEndsAt              DateTime?
-  currentPeriodStart       DateTime
-  currentPeriodEnd         DateTime
-  paymentMethodFingerprint String?
-  duplicatePaymentMethod   Boolean   @default(false)
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
-  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@schema("public")
-}
-
-model Avatar {
-  id             String   @id @default(cuid())
-  userId         String
-  name           String
-  type           String
-  status         String   @default("processing")
-  heygenAvatarId String?
-  videoId        String?
-  consentVideoId String?
-  imageUrl       String?
-  videoUrl       String?
-  error          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([heygenAvatarId])
-  @@schema("public")
-}
-
-model Waitlist {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
-
-  @@index([email])
+  @@map("heygen_avatar_cache")
   @@schema("public")
 }

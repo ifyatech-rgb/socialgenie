@@ -13,10 +13,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email required" }, { status: 400 })
     }
 
-    await prisma.waitlist.upsert({
-      where: { email },
-      create: { email },
-      update: {},
+    await prisma.user_activity_log.create({
+      data: {
+        activity_type: "waitlist_signup",
+        description: "Waitlist signup",
+        metadata: { email },
+      },
     })
 
     return NextResponse.json({ ok: true })

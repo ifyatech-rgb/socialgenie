@@ -59,16 +59,16 @@ export async function POST(request: NextRequest) {
     const normalizedEmail = email.toLowerCase()
 
     const currentUser = session?.user?.email
-      ? await prisma.user.findUnique({
+      ? await prisma.users.findUnique({
           where: { email: session.user.email.toLowerCase() },
-          include: { subscriptions: true },
+          include: { subscription_events: true },
         })
       : null
 
     // Duplicate prevention: email must not be registered to a different user
-    const existingUserByEmail = await prisma.user.findUnique({
+    const existingUserByEmail = await prisma.users.findUnique({
       where: { email: normalizedEmail },
-      include: { subscriptions: true },
+      include: { subscription_events: true },
     })
 
     if (existingUserByEmail && (!currentUser || existingUserByEmail.id !== currentUser.id)) {
@@ -85,11 +85,10 @@ export async function POST(request: NextRequest) {
     const stripeCustomers = await stripe.customers.list({ email: normalizedEmail, limit: 1 })
     if (stripeCustomers.data.length > 0) {
       const existingStripeCustomerId = stripeCustomers.data[0].id
-      const subscriptionWithCustomer = await prisma.subscription.findFirst({
-        where: { stripeCustomerId: existingStripeCustomerId },
-        include: { user: true },
+      const userWithStripeCustomer = await prisma.users.findFirst({
+        where: { stripe_customer_id: existingStripeCustomerId },
       })
-      if (subscriptionWithCustomer && (!currentUser || subscriptionWithCustomer.userId !== currentUser.id)) {
+      if (userWithStripeCustomer && (!currentUser || userWithStripeCustomer.id !== currentUser.id)) {
         return NextResponse.json(
           {
             error: "This email is already registered. Please sign in instead.",
@@ -111,8 +110,8 @@ export async function POST(request: NextRequest) {
     let customerId: string | undefined
     const user = currentUser ?? existingUserByEmail
 
-    if (user?.subscriptions?.stripeCustomerId) {
-      customerId = user.subscriptions.stripeCustomerId
+    if (user?.stripe_customer_id) {
+      customerId = user.stripe_customer_id
     } else if (stripeCustomers.data.length > 0) {
       customerId = stripeCustomers.data[0].id
     } else {
@@ -133,7 +132,7 @@ export async function POST(request: NextRequest) {
         trial_period_days: TRIAL_DAYS,
       },
       success_url: `${origin}/dashboard?success=true`,
-      cancel_url: `${origin}/checkout?canceled=true`,
+      cancel_url: `${origin}/pricing`,
       metadata: {
         plan,
         trial_days: String(TRIAL_DAYS),

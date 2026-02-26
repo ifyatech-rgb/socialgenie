@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { CreditCard, LogOut } from "lucide-react";
 import { LogoIcon } from "@/components/logo";
+import { clearScriptVideoContext } from "@/lib/script-video-context-storage";
 
 export default function CheckoutRequiredPage() {
   const { data: session, status } = useSession();
@@ -68,7 +69,10 @@ export default function CheckoutRequiredPage() {
             Complete Payment
           </button>
           <button
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={() => {
+              clearScriptVideoContext();
+              signOut({ callbackUrl: "/" });
+            }}
             className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
           >
             <LogOut className="h-5 w-5" />

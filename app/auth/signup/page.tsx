@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import Link from "next/link"
 import { signIn } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -12,7 +12,7 @@ import { PLANS, type PlanKey } from "@/lib/plans"
 const REDIRECT_MESSAGE = "You already have an account! Redirecting to sign in..."
 const REDIRECT_DELAY_MS = 2000
 
-const PAID_PLANS: PlanKey[] = ["creator", "professional", "enterprise"]
+const PAID_PLANS: PlanKey[] = ["creator", "professional"]
 
 export default function SignupPage() {
   const router = useRouter()
@@ -35,6 +35,17 @@ export default function SignupPage() {
     password: "",
     confirmPassword: "",
   })
+
+  // Prefill email from landing (e.g. ?email=... or sessionStorage signupEmail)
+  useEffect(() => {
+    const fromQuery = searchParams?.get("email")?.trim()
+    const fromStorage =
+      typeof window !== "undefined" ? sessionStorage.getItem("signupEmail")?.trim() : null
+    const prefill = fromQuery || fromStorage
+    if (prefill) {
+      setFormData((prev) => ({ ...prev, email: prefill }))
+    }
+  }, [searchParams])
 
   const checkEmail = useCallback(async (email: string) => {
     const e = email?.trim().toLowerCase()
@@ -109,7 +120,7 @@ export default function SignupPage() {
       toast.success("Account created! Complete onboarding to continue.")
       router.refresh()
       const plan = searchParams?.get("plan")?.toLowerCase()
-      const planParam = plan === "professional" || plan === "enterprise" ? plan : "creator"
+      const planParam = plan === "professional" ? "professional" : "creator"
       window.location.href = `/onboarding?plan=${planParam}`
       return
     } catch (err) {

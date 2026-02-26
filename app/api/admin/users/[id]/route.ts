@@ -27,48 +27,45 @@ export async function GET(
     }
 
     // Match Prisma User by email for scripts, videos, training videos
-    const prismaUser = await prisma.user.findUnique({
+    const prismaUser = await prisma.users.findUnique({
       where: { email: (profile as { email: string }).email },
       select: { id: true },
     })
 
     const [scripts, videosWithUrl, trainingVideos, activityRes] = await Promise.all([
       prismaUser
-        ? prisma.script.findMany({
-            where: { userId: prismaUser.id },
-            orderBy: { createdAt: "desc" },
+        ? prisma.scripts.findMany({
+            where: { user_id: prismaUser.id },
+            orderBy: { created_at: "desc" },
             select: {
               id: true,
               topic: true,
               platform: true,
-              tone: true,
-              length: true,
-              content: true,
+              content_style: true,
+              estimated_duration: true,
+              script_text: true,
               status: true,
-              generatedVideoUrl: true,
-              videoStatus: true,
-              createdAt: true,
+              generated_video_url: true,
+              video_status: true,
+              created_at: true,
             },
           })
         : [],
       prismaUser
-        ? prisma.script.findMany({
-            where: { userId: prismaUser.id, generatedVideoUrl: { not: null } },
-            orderBy: { createdAt: "desc" },
+        ? prisma.scripts.findMany({
+            where: { user_id: prismaUser.id, generated_video_url: { not: null } },
+            orderBy: { created_at: "desc" },
             select: {
               id: true,
               topic: true,
               platform: true,
-              generatedVideoUrl: true,
-              createdAt: true,
+              generated_video_url: true,
+              created_at: true,
             },
           })
         : [],
       prismaUser
-        ? prisma.trainingVideo.findMany({
-            where: { userId: prismaUser.id },
-            orderBy: { createdAt: "desc" },
-          })
+        ? [] // no trainingVideo model in schema; use [] until model exists
         : [],
       supabase
         .from("activity_logs")

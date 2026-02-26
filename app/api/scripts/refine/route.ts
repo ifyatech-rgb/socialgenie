@@ -27,37 +27,37 @@ export async function POST(request: NextRequest) {
     }
 
     const [script, user] = await Promise.all([
-      prisma.script.findUnique({ where: { id: scriptId } }),
-      prisma.user.findUnique({
+      prisma.scripts.findUnique({ where: { id: scriptId } }),
+      prisma.users.findUnique({
         where: { id: session.user.id },
-        select: { id: true, genieEdits: true, genieEditsUsed: true },
+        select: { id: true, genie_edits: true, genie_edits_used_this_month: true },
       }),
     ]);
 
-    if (!script || script.userId !== session.user.id) {
+    if (!script || script.user_id !== session.user.id) {
       return NextResponse.json({ error: "Script not found" }, { status: 404 });
     }
 
-    if (script.lifecycleStatus === "finalized") {
+    if (script.lifecycle_status === "finalized") {
       return NextResponse.json(
         { error: "This script is finalized. Create a new draft to make changes." },
         { status: 400 }
       );
     }
 
-    if (!user || !canUseGenie(user)) {
+    if (!user || !canUseGenie({ genieEdits: user.genie_edits })) {
       return NextResponse.json(
         {
           error: "No Genie edits remaining",
           code: "genie_limit_reached",
-          genieEdits: user?.genieEdits ?? 0,
+          genieEdits: user?.genie_edits ?? 0,
           upgradeRequired: true,
         },
         { status: 403 }
       );
     }
 
-    const chatHistory = (script.chatHistory as Array<{ role: string; content: string }>) ?? [];
+    const chatHistory = (script.chat_history as Array<{ role: string; content: string }>) ?? [];
 
     const refinementPrompt = `You are Genie 🧞‍♂️, a magical script refinement assistant with personality and charm!
 
@@ -111,35 +111,35 @@ Respond with ONLY the refined script - no explanations, just pure magic! ✨`;
     ];
 
     const [updatedScript] = await prisma.$transaction([
-      prisma.script.update({
+      prisma.scripts.update({
         where: { id: scriptId },
         data: {
-          content: refinedScript,
-          chatHistory: updatedChatHistory,
-          refinementCount: (script.refinementCount ?? 0) + 1,
+          script_text: refinedScript,
+          chat_history: updatedChatHistory,
+          genie_edits_count: (script.genie_edits_count ?? 0) + 1,
         },
       }),
-      prisma.user.update({
+      prisma.users.update({
         where: { id: session.user.id },
         data: {
-          genieEdits: Math.max(0, (user.genieEdits ?? 0) - 1),
-          genieEditsUsed: (user.genieEditsUsed ?? 0) + 1,
+          genie_edits: Math.max(0, (user.genie_edits ?? 0) - 1),
+          genie_edits_used_this_month: (user.genie_edits_used_this_month ?? 0) + 1,
         },
       }),
     ]);
 
-    const newGenieEdits = Math.max(0, (user.genieEdits ?? 0) - 1);
+    const newGenieEdits = Math.max(0, (user.genie_edits ?? 0) - 1);
     return NextResponse.json({
       success: true,
       script: {
         id: updatedScript.id,
-        content: updatedScript.content,
-        refinementCount: updatedScript.refinementCount,
-        lifecycleStatus: updatedScript.lifecycleStatus,
-        chatHistory: updatedScript.chatHistory,
+        content: updatedScript.script_text,
+        refinementCount: updatedScript.genie_edits_count,
+        lifecycleStatus: updatedScript.lifecycle_status,
+        chatHistory: updatedScript.chat_history,
       },
       refinedContent: refinedScript,
-      refinementCount: updatedScript.refinementCount,
+      refinementCount: updatedScript.genie_edits_count,
       genieEditsRemaining: newGenieEdits,
     });
   } catch (error) {

@@ -1,5 +1,22 @@
-require("dotenv").config({ path: ".env" });
-require("dotenv").config({ path: ".env.local" });
+/**
+ * Test HeyGen Avatars API connection.
+ * Run: node scripts/test-heygen-avatars.js
+ * Loads HEYGEN_API_KEY from .env.local or .env (no dotenv package required).
+ */
+const fs = require("fs");
+const path = require("path");
+
+function loadEnv(file) {
+  const p = path.resolve(process.cwd(), file);
+  if (!fs.existsSync(p)) return;
+  const content = fs.readFileSync(p, "utf8");
+  content.split("\n").forEach((line) => {
+    const m = line.match(/^\s*HEYGEN_API_KEY\s*=\s*(.+?)\s*$/);
+    if (m) process.env.HEYGEN_API_KEY = m[1].replace(/^["']|["']$/g, "").trim();
+  });
+}
+loadEnv(".env.local");
+loadEnv(".env");
 
 async function testHeyGenAvatars() {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -9,8 +26,8 @@ async function testHeyGenAvatars() {
   const apiKey = process.env.HEYGEN_API_KEY;
 
   if (!apiKey) {
-    console.log("❌ HEYGEN_API_KEY not found in .env.local");
-    console.log("   Add: HEYGEN_API_KEY=your-key-here");
+    console.log("❌ HEYGEN_API_KEY not found in .env.local or .env");
+    console.log("   Add: HEYGEN_API_KEY=your_key_here");
     return;
   }
 
@@ -44,7 +61,7 @@ async function testHeyGenAvatars() {
 
     if (!data.data || !data.data.avatars) {
       console.log("❌ Unexpected response structure");
-      console.log("Response:", JSON.stringify(data, null, 2));
+      console.log("Response:", JSON.stringify(data, null, 2).slice(0, 500));
       return;
     }
 

@@ -1,3 +1,5 @@
+import { LogoIcon } from "@/components/logo"
+
 export default function ComparisonSection() {
   const competitors = [
     {
@@ -28,6 +30,7 @@ export default function ComparisonSection() {
     },
     {
       emoji: "👑",
+      useLogo: true,
       title: "SocialGenie",
       time: "3 minutes",
       cost: "From $39/month",
@@ -82,9 +85,13 @@ export default function ComparisonSection() {
                 </div>
               )}
 
-              {/* Emoji */}
-              <div className="text-5xl text-center mb-4" aria-hidden>
-                {comp.emoji}
+              {/* Icon: logo for SocialGenie, emoji for others */}
+              <div className="flex justify-center mb-4" aria-hidden>
+                {"useLogo" in comp && comp.useLogo ? (
+                  <LogoIcon size={56} className="rounded-xl" />
+                ) : (
+                  <span className="text-5xl">{comp.emoji}</span>
+                )}
               </div>
 
               {/* Title */}

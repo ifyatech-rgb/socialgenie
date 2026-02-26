@@ -14,28 +14,20 @@ export async function POST(
     const email = await getAuthUserEmail(request);
     if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const emailNorm = email.trim().toLowerCase();
+    const user = await prisma.users.findUnique({ where: { email: emailNorm }, select: { id: true } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     const { id } = await context.params;
-    const script = await prisma.script.findFirst({
-      where: { id, userId: user.id },
+    const script = await prisma.scripts.findFirst({
+      where: { id, user_id: user.id },
     });
 
     if (!script) return NextResponse.json({ error: "Script not found" }, { status: 404 });
 
-    await prisma.script.update({
+    await prisma.scripts.update({
       where: { id },
-      data: {
-        status: "generated",
-        generatedVideoId: null,
-        generatedVideoUrl: null,
-        videoProvider: null,
-        videoStatus: null,
-        videoProgress: null,
-        videoError: null,
-        thumbnailUrl: null,
-      },
+      data: { video_status: null, generated_video_id: null, generated_video_url: null, video_error: null },
     });
 
     return NextResponse.json({ success: true });

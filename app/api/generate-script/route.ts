@@ -65,9 +65,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: session.user.email },
-      include: { subscriptions: true },
+      include: { subscription_events: true },
     })
 
     if (!user) {
@@ -211,14 +211,14 @@ Now write the script. Start directly with the hook - no preamble. Output pure na
     console.log('Script generated, cleaned, and formatted; saving to database...')
 
     // 6. Save to database
-    const script = await prisma.script.create({
+    const script = await prisma.scripts.create({
       data: {
-        userId: user.id,
+        user_id: user.id,
         topic,
         platform,
-        tone,
-        length: effectiveLength,
-        content: generatedScript,
+        content_style: tone,
+        estimated_duration: effectiveLength ?? undefined,
+        script_text: generatedScript,
         status: 'generated',
       },
     })

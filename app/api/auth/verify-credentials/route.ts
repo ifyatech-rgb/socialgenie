@@ -20,9 +20,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email },
-      select: { id: true, email: true, name: true, password: true },
+      select: { id: true, email: true, name: true, password_hash: true },
     })
 
     if (!user) {
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (user.password) {
-      const valid = await compare(password, user.password)
+    if (user.password_hash) {
+      const valid = await compare(password, user.password_hash)
       if (!valid) {
         return NextResponse.json(
           { ok: false, error: "Incorrect password. Please try again." },
@@ -44,16 +44,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, email: user.email })
   } catch (e) {
-    console.error("[verify-credentials]", e)
-    const msg =
-      e instanceof Error
-        ? e.message
-        : "Something went wrong. Please try again."
+    const code = (e as { code?: string })?.code
+    const msg = e instanceof Error ? e.message : "Something went wrong. Please try again."
+    console.error("[verify-credentials]", code ?? msg, e)
     const isDbError =
       msg.includes("connection") ||
       msg.includes("timeout") ||
       msg.includes("ECONNREFUSED") ||
-      (e as { code?: string })?.code?.startsWith?.("P")
+      msg.includes("does not exist") ||
+      msg.includes("relation") ||
+      code?.startsWith?.("P")
     return NextResponse.json(
       {
         ok: false,

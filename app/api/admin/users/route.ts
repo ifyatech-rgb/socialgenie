@@ -61,16 +61,16 @@ export async function GET(request: NextRequest) {
     // Real script/video counts: match Prisma User by email
     const enhancedUsers = await Promise.all(
       users.map(async (user) => {
-        const prismaUser = await prisma.user.findUnique({
+        const prismaUser = await prisma.users.findUnique({
           where: { email: user.email },
           select: { id: true },
         })
         let scriptCount = 0
         let videoCount = 0
         if (prismaUser) {
-          scriptCount = await prisma.script.count({ where: { userId: prismaUser.id } })
-          videoCount = await prisma.script.count({
-            where: { userId: prismaUser.id, generatedVideoUrl: { not: null } },
+          scriptCount = await prisma.scripts.count({ where: { user_id: prismaUser.id } })
+          videoCount = await prisma.scripts.count({
+            where: { user_id: prismaUser.id, generated_video_url: { not: null } },
           })
         }
         return {

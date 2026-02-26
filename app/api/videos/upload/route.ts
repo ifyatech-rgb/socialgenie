@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: session.user.email },
     });
 
@@ -71,23 +71,32 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     await writeFile(filepath, buffer);
 
-    // Create video record in database
+    // Store as project (uploaded) so GET/DELETE /api/videos/[id] can resolve it
+    const url = `/uploads/videos/${filename}`;
     try {
-      const video = await prisma.video.create({
+      const project = await prisma.projects.create({
         data: {
-          userId: user.id,
-          filename: filename,
-          url: `/uploads/videos/${filename}`,
+          user_id: user.id,
+          name: "Uploaded video",
+          script_text: "(uploaded file)",
+          avatar_id: "upload",
+          avatar_name: "Upload",
           status: "uploaded",
+          video_url: url,
         },
       });
+      await prisma.projects.update({
+        where: { id: project.id },
+        data: { video_id: project.id },
+      });
+      const video = { id: project.id, userId: user.id, filename, url, status: "uploaded" as const };
 
       syncVideoToSupabase({
-        id: video.id,
-        user_id: video.userId,
-        url: video.url,
-        filename: video.filename,
-        status: video.status,
+        id: project.id,
+        user_id: user.id,
+        url,
+        filename,
+        status: "uploaded",
       }).catch(() => {});
 
       return NextResponse.json({ 

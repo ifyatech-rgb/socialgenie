@@ -4,12 +4,12 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 /**
- * Redirect /sign-up → /auth/signup so both URLs work.
+ * Redirect /sign-up → /onboarding (streamlined flow: onboarding → create password → pricing).
  */
 export default function SignUpRedirect() {
   const router = useRouter()
   useEffect(() => {
-    router.replace("/auth/signup")
+    router.replace("/onboarding")
   }, [router])
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">

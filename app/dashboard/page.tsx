@@ -28,6 +28,7 @@ interface DashboardData {
   customAvatarsLimit?: number;
   customAvatarsUsed?: number;
   subscription?: { status: string; duplicatePaymentMethod?: boolean; trialEndsAt?: string | null } | null;
+  trial?: { isActive: boolean; daysRemaining: number; isExpired: boolean };
   recentScripts: Array<{
     id: string;
     topic: string;
@@ -140,9 +141,11 @@ export default function DashboardPage() {
             scriptsCount: Number(u?.scriptsCount) || 0,
             videosCount: Number(u?.videosCount) || 0,
             credits: Number(u?.credits) || 0,
+            videoCredits: Number(u?.videoCredits ?? u?.credits) || 0,
             recentScripts: [],
             recentVideos: [],
             subscription: null,
+            trial: u?.trial,
           };
           setData(fallback);
           setStats({ credits: fallback.credits ?? 0, scriptsCount: fallback.scriptsCount, videosCount: fallback.videosCount });
@@ -163,6 +166,13 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  // Refetch dashboard when scripts/videos change elsewhere (e.g. after generating a script)
+  useEffect(() => {
+    const onRefresh = () => fetchDashboardData();
+    window.addEventListener("dashboard-refresh", onRefresh);
+    return () => window.removeEventListener("dashboard-refresh", onRefresh);
+  }, [fetchDashboardData]);
+
   const credits = data?.credits ?? 0;
   const videoCredits = data?.videoCredits ?? data?.credits ?? 0;
   const genieEdits = data?.genieEdits ?? 0;
@@ -178,6 +188,7 @@ export default function DashboardPage() {
   const recentVideos = data?.recentVideos ?? [];
   const subscriptionStatus = data?.subscription?.status;
   const trialEndsAt = data?.subscription?.trialEndsAt ?? null;
+  const trial = data?.trial;
 
   const recentActivity = activities.slice(0, 3).map((a) => ({
     id: a.id,
@@ -213,6 +224,65 @@ export default function DashboardPage() {
           </span>
           <Link href="/auth/signin" className="shrink-0 font-semibold text-amber-700 hover:text-amber-900">
             Sign in →
+          </Link>
+        </div>
+      )}
+
+      {/* Trial active banner */}
+      {trial?.isActive && !trial.isExpired && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-500 p-4 sm:p-5 text-white">
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">🎁</span>
+            <div>
+              <p className="font-bold text-lg">Free Trial Active!</p>
+              <p className="text-white/90 text-sm">
+                {videoCredits} credits remaining • {trial.daysRemaining} days left
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/pricing"
+            className="shrink-0 rounded-xl bg-white px-5 py-2.5 font-semibold text-purple-600 hover:bg-white/90 transition"
+          >
+            Upgrade Now →
+          </Link>
+        </div>
+      )}
+
+      {/* Trial expired banner */}
+      {trial?.isActive && trial.isExpired && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 p-4 sm:p-5 text-white">
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">⏰</span>
+            <div>
+              <p className="font-bold text-lg">Free Trial Expired</p>
+              <p className="text-white/90 text-sm">Upgrade to continue creating amazing videos!</p>
+            </div>
+          </div>
+          <Link
+            href="/pricing"
+            className="shrink-0 rounded-xl bg-amber-100 px-5 py-2.5 font-semibold text-amber-900 hover:bg-amber-200 transition"
+          >
+            Upgrade Now →
+          </Link>
+        </div>
+      )}
+
+      {/* Low credits warning */}
+      {videoCredits <= 2 && videoCredits > 0 && !trial?.isExpired && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 p-4 sm:p-5 text-white">
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">⚠️</span>
+            <div>
+              <p className="font-bold text-lg">Running Low on Credits!</p>
+              <p className="text-white/90 text-sm">Only {videoCredits} credits left. Upgrade for more!</p>
+            </div>
+          </div>
+          <Link
+            href="/pricing"
+            className="shrink-0 rounded-xl bg-white px-5 py-2.5 font-semibold text-amber-700 hover:bg-white/90 transition"
+          >
+            Get More Credits →
           </Link>
         </div>
       )}

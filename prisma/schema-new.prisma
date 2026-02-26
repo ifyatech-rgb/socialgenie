@@ -1,0 +1,207 @@
+// New Clean Schema for SocialGenie (reference / future migration)
+// Use this schema when you are ready to migrate. Do NOT replace schema.prisma
+// until you have run the migration script and updated all app code to use these models.
+//
+// Datasource: uses same env as current (DIRECT_DATABASE_URL for migrations).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════
+// USER & AUTHENTICATION
+// ═══════════════════════════════════════════════════════════
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?
+
+  // Plan & Subscription
+  plan                  String    @default("trial")
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?
+  subscriptionStatus    String?
+  subscriptionEndsAt    DateTime?
+
+  // Credits & Limits
+  videoCredits          Int       @default(10)
+  videoCreditsTotal     Int       @default(10)
+  videoCreditsUsed      Int       @default(0)
+  customAvatarsLimit    Int       @default(1)
+  maxVideoLength        Int       @default(60)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastLoginAt  DateTime?
+
+  // Relations
+  videos       Video[]
+  avatars      Avatar[]
+  scripts      Script[]
+
+  @@index([email])
+  @@index([plan])
+  @@index([stripeCustomerId])
+  @@map("users")
+}
+
+// ═══════════════════════════════════════════════════════════
+// VIDEOS (Main Content - maps from GeneratedVideo + Script)
+// ═══════════════════════════════════════════════════════════
+
+model Video {
+  id          String    @id @default(cuid())
+  userId      String
+
+  // Content
+  title       String?
+  script      String    @db.Text
+  scriptId    String?
+
+  // Avatar & Voice
+  avatarId    String
+  avatarName  String?
+  avatarType  String    @default("public")
+  voiceId     String?
+
+  // HeyGen
+  heygenVideoId   String?  @unique
+  status          String   @default("pending")
+
+  // Output
+  videoUrl        String?
+  thumbnailUrl    String?
+  duration        Int?
+
+  // Platform & Format
+  platform    String?   @default("9:16")
+  resolution  String?  @default("1080p")
+
+  // Credits & Cost
+  creditsUsed Int       @default(1)
+  heygenCost  Float?
+
+  // Error Handling
+  error       String?  @db.Text
+  retryCount  Int       @default(0)
+
+  // Timestamps
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  completedAt  DateTime?
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  script Script? @relation(fields: [scriptId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([heygenVideoId])
+  @@index([createdAt])
+  @@map("videos")
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCRIPTS (AI Generated Scripts)
+// ═══════════════════════════════════════════════════════════
+
+model Script {
+  id          String   @id @default(cuid())
+  userId      String
+
+  // Content
+  title       String?
+  topic       String?
+  niche       String?
+  content     String   @db.Text
+  hook        String?  @db.Text
+  body        String?  @db.Text
+  cta         String?  @db.Text
+
+  // Metadata
+  platform    String?  @default("tiktok")
+  style       String?
+  tone        String?
+
+  // AI Generation
+  prompt      String?  @db.Text
+  model       String?
+
+  // Stats
+  wordCount       Int?
+  estimatedLength Int?
+  editCount       Int   @default(0)
+
+  // Status
+  isFavorite  Boolean  @default(false)
+  isUsed      Boolean  @default(false)
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos Video[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([isFavorite])
+  @@map("scripts")
+}
+
+// ═══════════════════════════════════════════════════════════
+// AVATARS (Custom Avatars)
+// ═══════════════════════════════════════════════════════════
+
+model Avatar {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  heygenId    String   @unique
+  type        String   @default("custom")
+  thumbnailUrl    String?
+  trainingVideoUrl String?
+  status      String   @default("processing")
+  isPrivate   Boolean  @default(true)
+  heygenStatus String?
+  error       String?  @db.Text
+  usageCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  readyAt     DateTime?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([heygenId])
+  @@map("avatars")
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANALYTICS (Usage Tracking)
+// ═══════════════════════════════════════════════════════════
+
+model Analytics {
+  id         String   @id @default(cuid())
+  userId     String
+  eventType  String
+  metadata   Json?
+  creditsCost Int?
+  moneyCost   Float?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("analytics")
+}

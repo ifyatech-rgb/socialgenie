@@ -7,7 +7,7 @@ import { getHeyGenClient } from "@/lib/heygenClient";
 /**
  * GET /api/generate-video/[videoId]
  *
- * Check the status of a HeyGen video generation
+ * Check the status of a video generation
  */
 export async function GET(
   request: NextRequest,
@@ -21,7 +21,7 @@ export async function GET(
 
     if (!process.env.HEYGEN_API_KEY) {
       return NextResponse.json(
-        { error: "HeyGen API key not configured" },
+        { error: "Video API key not configured" },
         { status: 500 }
       );
     }
@@ -41,16 +41,16 @@ export async function GET(
     const scriptId = searchParams.get("scriptId");
 
     if (status.status === "done" && resultUrl && scriptId) {
-      const user = await prisma.user.findUnique({
+      const user = await prisma.users.findUnique({
         where: { email: session.user.email },
       });
       if (user) {
-        await prisma.script.update({
-          where: { id: scriptId, userId: user.id },
+        await prisma.scripts.update({
+          where: { id: scriptId, user_id: user.id },
           data: {
             status: "video_ready",
-            generatedVideoUrl: resultUrl,
-            videoStatus: "completed",
+            generated_video_url: resultUrl,
+            video_status: "completed",
           },
         });
       }

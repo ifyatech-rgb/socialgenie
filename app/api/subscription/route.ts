@@ -12,33 +12,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: session.user.email },
-      include: { subscriptions: true },
+      include: { subscription_events: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // If no subscription exists, return trial/paid defaults (single $19 plan)
-    if (!user.subscriptions) {
-      const trialDetails = getPlanDetails("trial");
-      return NextResponse.json({
-        subscription: {
-          plan: "trial",
-          status: "trialing",
-          ...trialDetails,
-        },
-      });
-    }
-
-    // Get plan details
-    const planDetails = getPlanDetails(user.subscriptions.plan);
-
+    // Build subscription from user plan fields
+    const plan = user.plan ?? "trial";
+    const planDetails = getPlanDetails(plan);
     return NextResponse.json({
       subscription: {
-        ...user.subscriptions,
+        plan,
+        status: user.plan_status ?? "trialing",
+        plan_start_date: user.plan_start_date,
         ...planDetails,
       },
     });
@@ -70,7 +60,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email: session.user.email },
     });
 
@@ -83,22 +73,14 @@ export async function POST(request: NextRequest) {
     const periodEnd = new Date(now);
     periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-    // Upsert subscription
-    const subscription = await prisma.subscription.upsert({
-      where: { userId: user.id },
-      update: {
-        plan: plan,
-        status: "active",
-        currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
-        updatedAt: now,
-      },
-      create: {
-        userId: user.id,
-        plan: plan,
-        status: "active",
-        currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
+    // Update user plan
+    await prisma.users.update({
+      where: { id: user.id },
+      data: {
+        plan,
+        plan_status: "active",
+        plan_start_date: now,
+        updated_at: now,
       },
     });
 
@@ -107,7 +89,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       message: `Successfully upgraded to ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan!`,
       subscription: {
-        ...subscription,
+        plan,
+        status: "active",
+        plan_start_date: now,
         ...planDetails,
       },
     });

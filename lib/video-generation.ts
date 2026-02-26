@@ -4,8 +4,37 @@
  */
 
 import { getDIDAuthHeader } from "./did-auth";
+import { prisma } from "./prisma";
 
 const DID_BASE = "https://api.d-id.com";
+
+/** HeyGen voice IDs are 32-char hex; treat as valid when used from frontend. */
+function looksLikeHeyGenVoiceId(value: string | undefined | null): boolean {
+  if (!value || typeof value !== "string") return false;
+  return /^[0-9a-f]{32}$/i.test(value.trim());
+}
+
+/**
+ * Fallback voice when cache/request have none: any voice from cache, or first from HeyGen API.
+ * Never block generation when we can use a valid fallback.
+ */
+async function getFirstAvailableVoiceId(): Promise<string | null> {
+  try {
+    const rows = await prisma.heygen_avatar_cache.findMany({
+      take: 20,
+      select: { default_voice_id: true },
+    });
+    const withVoice = rows.find((r) => r.default_voice_id != null && r.default_voice_id !== "");
+    if (withVoice?.default_voice_id) return withVoice.default_voice_id;
+    const { getHeyGenClient } = await import("./heygenClient");
+    const heygen = getHeyGenClient();
+    const voices = await heygen.getVoices();
+    return voices[0]?.voice_id ?? null;
+  } catch (e) {
+    console.error("[VideoGeneration] Could not get fallback voice:", e);
+    return null;
+  }
+}
 
 export interface VideoGenerationRequest {
   script: string;
@@ -18,6 +47,10 @@ export interface VideoGenerationRequest {
   avatarUrl?: string;
   expressVoiceId?: string;
   aspectRatio?: "16:9" | "9:16" | "1:1";
+  /** HeyGen avatar_style (e.g. look name) when different from default. */
+  avatarStyle?: string;
+  /** When true, use HeyGen character.type "talking_photo" (required for photo avatars). */
+  useTalkingPhoto?: boolean;
   backgroundType?: "default" | "color" | "green_screen" | "image";
   backgroundValue?: string;
   captionsEnabled?: boolean;
@@ -31,6 +64,8 @@ export interface VideoGenerationResult {
   status: "pending" | "processing" | "completed" | "failed";
   provider: "did" | "heygen";
   error?: string;
+  /** Raw provider error for logging/debug (e.g. HeyGen API response). */
+  rawError?: string;
   estimatedDuration?: number;
 }
 
@@ -52,6 +87,7 @@ export async function generateVideo(
   if (request.provider === "heygen") {
     try {
       const { getHeyGenClient } = await import("./heygenClient");
+      const { resolveVoiceIdForGeneration, isInvalidOrPlaceholderVoiceId } = await import("./resolve-avatar-voice");
       if (!process.env.HEYGEN_API_KEY) {
         return {
           success: false,
@@ -60,7 +96,7 @@ export async function generateVideo(
           error: "HeyGen API key not configured. Add HEYGEN_API_KEY to .env.",
         };
       }
-      const avatarId = request.avatarId;
+      const avatarId = (request.avatarId ?? "").trim();
       if (!avatarId) {
         return {
           success: false,
@@ -69,29 +105,49 @@ export async function generateVideo(
           error: "Avatar ID is required for HeyGen.",
         };
       }
-      const heygen = getHeyGenClient();
-      let voiceId = request.voiceId;
-      if (!voiceId) {
-        const details = await heygen.getAvatarDetails(avatarId);
-        voiceId = details?.defaultVoice ?? undefined;
+      // Step 1: Use voice from request if it looks like a real HeyGen voice ID (e.g. from confirmation page)
+      let finalVoiceId: string | null = looksLikeHeyGenVoiceId(request.voiceId) ? (request.voiceId ?? "").trim() || null : null;
+      // Step 2: If not in request, resolve from cache/API (invalid placeholders are already cleared by caller)
+      if (!finalVoiceId) {
+        if (isInvalidOrPlaceholderVoiceId(request.voiceId, avatarId)) {
+          request.voiceId = undefined;
+        }
+        const resolved = await resolveVoiceIdForGeneration(avatarId, request.voiceId);
+        finalVoiceId = resolved?.voice_id ?? null;
       }
-      if (!voiceId) {
-        const voices = await heygen.getVoices();
-        voiceId = voices[0]?.voice_id;
+      // Step 3: Fallback so we never block generation when a valid voice exists elsewhere
+      if (!finalVoiceId) {
+        finalVoiceId = await getFirstAvailableVoiceId();
+        if (finalVoiceId) {
+          console.warn(`[VideoGeneration] No voice found for avatar ${avatarId}, using fallback voice`);
+        }
       }
-      if (!voiceId) {
+      if (!finalVoiceId) {
         return {
           success: false,
           status: "failed",
           provider: "heygen",
-          error: "No voice available. Provide voiceId or use an avatar with a default voice.",
+          error: "Avatar configuration incomplete. No valid voice for this avatar. Please select a different avatar.",
         };
       }
+      const voiceId = finalVoiceId;
+      const heygen = getHeyGenClient();
+      console.log("[VideoGeneration] HeyGen request:", {
+        avatarId,
+        voiceId,
+        scriptLength: request.script?.length ?? 0,
+        aspectRatio: request.aspectRatio ?? "9:16",
+        platform: "heygen",
+      });
       const result = await heygen.generateVideo(
         request.script,
         avatarId,
         voiceId,
-        { aspectRatio: request.aspectRatio ?? "9:16" }
+        {
+          aspectRatio: request.aspectRatio ?? "9:16",
+          avatarStyle: request.avatarStyle ?? undefined,
+          useTalkingPhoto: request.useTalkingPhoto === true,
+        }
       );
       return {
         success: true,
@@ -101,11 +157,19 @@ export async function generateVideo(
         estimatedDuration: Math.ceil(request.script.length / 12),
       };
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "HeyGen video generation failed";
+      const rawErr =
+        error instanceof Error && "rawResponse" in error
+          ? String((error as Error & { rawResponse?: string }).rawResponse)
+          : (error instanceof Error ? error.stack ?? error.message : String(error));
+      console.error("[VideoGeneration] HeyGen error:", errMsg);
+      console.error("[VideoGeneration] HeyGen raw error:", rawErr);
       return {
         success: false,
         status: "failed",
         provider: "heygen",
-        error: error instanceof Error ? error.message : "HeyGen video generation failed",
+        error: errMsg,
+        rawError: rawErr,
       };
     }
   }

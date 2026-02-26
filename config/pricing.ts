@@ -1,17 +1,17 @@
 /**
- * Single $19/month plan with 7-day trial (credit card required)
+ * Trial vs paid. Plan tiers (Creator 1 avatar, Professional 5) are in lib/plans.ts.
  */
 
 export const PRICING_CONFIG = {
   TRIAL: {
-    name: "7-Day Free Trial",
+    name: "Free Trial",
     duration: 7,
     price: 0,
-    requireCreditCard: true,
+    requireCreditCard: false,
 
     features: {
-      videosAllowed: 3,
-      maxVideoDuration: 60, // 1 minute
+      videosAllowed: 10,
+      maxVideoDuration: null, // any length; credits by duration
       videoQuality: "720p",
       hasWatermark: true,
       processingSpeed: "standard",
@@ -27,7 +27,7 @@ export const PRICING_CONFIG = {
 
     displayFeatures: {
       videoGeneration: [
-        "Create 3 videos (up to 1 min each)",
+        "Create videos of any length (credits by duration)",
         "Access 500+ stock avatars",
         "Generate unlimited scripts",
         "Export in 720p",
@@ -144,7 +144,7 @@ export function getScriptsRemaining(user: PricingUser): number | "Unlimited" {
 
 export function getMaxVideoDuration(user: PricingUser): number {
   const limits = getUserPlanLimits(user);
-  return limits.maxVideoDuration;
+  return limits.maxVideoDuration ?? 0;
 }
 
 export function getVideoQuality(user: PricingUser): string {

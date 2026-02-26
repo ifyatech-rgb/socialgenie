@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2 } from "lucide-react";
+import { VoicePreviewButton } from "@/components/VoicePreviewButton";
 
 export interface HeyGenVoiceItem {
   id: string;
@@ -23,6 +24,9 @@ export default function VoiceSelector({ onSelect, selected }: VoiceSelectorProps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState("English");
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     fetch("/api/heygen/voices")
@@ -38,6 +42,29 @@ export default function VoiceSelector({ onSelect, selected }: VoiceSelectorProps
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => () => { voiceAudioRef.current?.pause(); }, []);
+
+  const handlePlayVoice = useCallback((voice: HeyGenVoiceItem) => {
+    const id = voice.id;
+    const previewUrl = voice.preview;
+    if (!previewUrl) return;
+    if (playingVoiceId === id) {
+      voiceAudioRef.current?.pause();
+      setPlayingVoiceId(null);
+      setPreviewLoadingId(null);
+      return;
+    }
+    if (voiceAudioRef.current) voiceAudioRef.current.pause();
+    setPreviewLoadingId(id);
+    const audio = new Audio(previewUrl);
+    voiceAudioRef.current = audio;
+    audio.addEventListener("playing", () => setPreviewLoadingId(null), { once: true });
+    audio.addEventListener("ended", () => setPlayingVoiceId(null), { once: true });
+    audio.addEventListener("error", () => { setPreviewLoadingId(null); setPlayingVoiceId(null); }, { once: true });
+    audio.play().catch(() => { setPreviewLoadingId(null); setPlayingVoiceId(null); });
+    setPlayingVoiceId(id);
+  }, [playingVoiceId]);
 
   if (loading) {
     return (
@@ -86,6 +113,14 @@ export default function VoiceSelector({ onSelect, selected }: VoiceSelectorProps
               selected === voice.id ? "border-indigo-500 bg-indigo-50/50" : "border-gray-200 bg-white hover:border-indigo-300"
             }`}
           >
+            <VoicePreviewButton
+              previewUrl={voice.preview}
+              isPlaying={playingVoiceId === voice.id}
+              onPlayPause={() => handlePlayVoice(voice)}
+              loading={previewLoadingId === voice.id}
+              voiceName={voice.name}
+              size="sm"
+            />
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-gray-900">{voice.name}</div>
               <div className="mt-1 flex flex-wrap gap-2">
@@ -97,18 +132,6 @@ export default function VoiceSelector({ onSelect, selected }: VoiceSelectorProps
                 )}
               </div>
             </div>
-            {voice.preview && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  new Audio(voice.preview).play();
-                }}
-                className="shrink-0 rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-indigo-100 hover:text-indigo-700"
-              >
-                🔊 Preview
-              </button>
-            )}
             {selected === voice.id && <span className="text-xl font-bold text-indigo-600">✓</span>}
           </div>
         ))}

@@ -9,7 +9,7 @@ import { toast } from "sonner"
 import { LogoIcon } from "@/components/logo"
 import { PLANS, type PlanKey } from "@/lib/plans"
 
-const PAID_PLANS: PlanKey[] = ["creator", "professional", "enterprise"]
+const PAID_PLANS: PlanKey[] = ["creator", "professional"]
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -37,7 +37,7 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: session?.user?.email ?? undefined,
-          plan: plan === "creator" || plan === "professional" || plan === "enterprise" ? plan : "creator",
+          plan: plan === "professional" ? "professional" : "creator",
         }),
       })
 
@@ -117,7 +117,7 @@ export default function CheckoutPage() {
               </li>
               <li className="flex items-center gap-3 text-gray-300">
                 <Check className="h-5 w-5 text-green-400 flex-shrink-0" />
-                3 videos during trial • {planConfig.videoCredits} videos/month after
+                {PLANS.trial.videoCredits} credits during trial • {planConfig.videoCredits} credits/month after (any length)
               </li>
               <li className="flex items-center gap-3 text-gray-300">
                 <Check className="h-5 w-5 text-green-400 flex-shrink-0" />

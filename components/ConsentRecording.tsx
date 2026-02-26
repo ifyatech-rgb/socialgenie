@@ -5,6 +5,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 export interface ConsentRecordingProps {
   /** User's actual name for script and verification */
   userName: string;
+  /** Optional: when user edits their name in the consent script */
+  onUserNameChange?: (name: string) => void;
   /** Called with blob and whether name was verified. Only proceed when verified is true. */
   onComplete: (videoBlob: Blob, verified: boolean) => void;
   /** Optional: when user clicks Back (e.g. from instructions) */
@@ -14,7 +16,7 @@ export interface ConsentRecordingProps {
 const DEFAULT_SCRIPT_NAME = "Your Name";
 const CONSENT_SCRIPT_TEMPLATE = `I, {{name}}, grant permission to use my likeness to create an AI avatar. I understand this avatar will be used to generate videos on the SocialGenie platform. I confirm I am the person in this video and have the legal right to provide this consent.`;
 
-export function ConsentRecording({ userName, onComplete, onBack }: ConsentRecordingProps) {
+export function ConsentRecording({ userName, onUserNameChange, onComplete, onBack }: ConsentRecordingProps) {
   const [step, setStep] = useState<"instructions" | "recording" | "verification">("instructions");
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -199,7 +201,22 @@ export function ConsentRecording({ userName, onComplete, onBack }: ConsentRecord
               <h3 className="font-bold text-xl text-purple-900">You Will Read This Script:</h3>
             </div>
             <div className="bg-white rounded-xl p-6 border-2 border-purple-200">
-              <p className="text-gray-800 leading-relaxed text-lg font-medium">{consentScript}</p>
+              <p className="text-gray-800 leading-relaxed text-lg font-medium flex flex-wrap items-baseline gap-1">
+                I,&nbsp;
+                {onUserNameChange ? (
+                  <input
+                    type="text"
+                    value={userName.trim()}
+                    onChange={(e) => onUserNameChange(e.target.value)}
+                    placeholder="Your Name"
+                    className="inline-block min-w-[140px] max-w-[280px] rounded-lg border-2 border-purple-300 bg-purple-50/50 px-3 py-1.5 text-lg font-semibold text-gray-900 placeholder-gray-500 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                    aria-label="Your name in the consent script"
+                  />
+                ) : (
+                  <strong>{displayName}</strong>
+                )}
+                , grant permission to use my likeness to create an AI avatar. I understand this avatar will be used to generate videos on the SocialGenie platform. I confirm I am the person in this video and have the legal right to provide this consent.
+              </p>
             </div>
             <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
@@ -209,7 +226,7 @@ export function ConsentRecording({ userName, onComplete, onBack }: ConsentRecord
                 <div>
                   <p className="font-semibold text-yellow-900 mb-1">Important:</p>
                   <p className="text-yellow-800 text-sm">
-                    You MUST say your name &quot;<strong>{displayName}</strong>&quot; exactly as shown. Our system will verify your name. If it doesn&apos;t match, your avatar will be rejected.
+                    You MUST say your name &quot;<strong>{displayName}</strong>&quot; exactly as shown above. Our system will verify your name. If it doesn&apos;t match, your avatar will be rejected.
                   </p>
                 </div>
               </div>
@@ -255,19 +272,20 @@ export function ConsentRecording({ userName, onComplete, onBack }: ConsentRecord
     );
   }
 
-  // Recording step (full screen + overlay)
+  // Recording step: medium-sized camera, consent below video, controls below consent (no overlap)
   if (step === "recording") {
     return (
-      <div className="fixed inset-0 bg-black z-50 flex flex-col">
-        <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4">
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-5xl mx-auto">
+          {/* Header + Back + REC indicator */}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
               onClick={() => {
                 stopCamera();
                 setStep("instructions");
               }}
-              className="text-white hover:text-gray-300 font-medium flex items-center gap-2 bg-black/30 px-4 py-2 rounded-lg backdrop-blur-sm"
+              className="text-gray-600 hover:text-gray-900 font-medium flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -275,77 +293,114 @@ export function ConsentRecording({ userName, onComplete, onBack }: ConsentRecord
               Back
             </button>
             {isRecording && (
-              <div className="flex items-center gap-3 bg-red-600 text-white px-6 py-3 rounded-full shadow-lg">
+              <div className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg">
                 <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
-                <span className="font-bold text-lg">REC {formatTime(recordingTime)}</span>
+                <span className="font-semibold">REC {formatTime(recordingTime)}</span>
               </div>
             )}
           </div>
-        </div>
 
-        <div className="flex-1 relative min-h-0">
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-
-          {countdown !== null && countdown > 0 && (
-            <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-              <div className="text-white text-9xl font-bold animate-pulse">{countdown}</div>
+          <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            {/* Camera feed - medium size, not fullscreen */}
+            <div className="flex justify-center mb-6">
+              <div className="relative w-full max-w-3xl aspect-video bg-gray-900 rounded-2xl overflow-hidden shadow-xl">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+                {countdown !== null && countdown > 0 && (
+                  <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+                    <div className="text-white text-8xl sm:text-9xl font-bold animate-pulse">{countdown}</div>
+                  </div>
+                )}
+                {cameraReady && !isRecording && countdown === null && (
+                  <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 text-white px-3 py-1.5 rounded-full text-sm">
+                    <div className="w-2 h-2 bg-green-500 rounded-full" />
+                    <span>Camera Active</span>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          {isRecording && (
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-6 sm:p-8">
-              <div className="max-w-4xl mx-auto">
-                <div className="bg-white/10 backdrop-blur-md border-2 border-white/30 rounded-2xl p-6 sm:p-8">
-                  <h3 className="text-yellow-400 font-bold text-xl sm:text-2xl mb-4 flex items-center gap-2">
-                    <span>📜</span> Read This Script:
-                  </h3>
-                  <p className="text-white text-xl sm:text-2xl leading-relaxed font-medium">{consentScript}</p>
+            {/* Consent script - below video, fully visible, no overlap */}
+            <div className="mb-6">
+              <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-2xl p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-yellow-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold text-yellow-900 mb-2">
+                      Read This Script Clearly:
+                    </h3>
+                    <div className="bg-white rounded-xl p-4 border border-yellow-200">
+                      <p className="text-gray-800 leading-relaxed text-base">
+                        {consentScript}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl p-4 border border-yellow-200">
+                  <h4 className="font-semibold text-gray-900 mb-2">Recording tips:</h4>
+                  <ul className="space-y-2 text-sm text-gray-700">
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>Speak clearly and say your name &quot;{displayName}&quot; exactly as shown</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>Keep your face well-lit and centered</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>Minimum 30 seconds (max ~60 seconds)</span>
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>
-          )}
 
-          {error && (
-            <div className="absolute inset-0 bg-red-600/90 flex items-center justify-center p-8">
-              <div className="text-center text-white max-w-md">
-                <svg className="w-20 h-20 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* Recording controls - below consent, centered */}
+            <div className="flex justify-center">
+              {!isRecording && countdown === null && cameraReady ? (
+                <button
+                  type="button"
+                  onClick={startCountdown}
+                  className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105"
+                >
+                  <div className="w-4 h-4 bg-white rounded-full" />
+                  Start Recording
+                </button>
+              ) : isRecording ? (
+                <button
+                  type="button"
+                  onClick={stopRecording}
+                  className="flex items-center gap-3 px-8 py-4 bg-gray-900 hover:bg-black text-white text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all"
+                >
+                  <div className="w-4 h-4 bg-white" />
+                  Stop Recording
+                </button>
+              ) : null}
+            </div>
+
+            {/* Camera error - full message, no overlay on video */}
+            {error && (
+              <div className="mt-6 rounded-2xl bg-red-50 border-2 border-red-200 p-6 text-center">
+                <svg className="w-12 h-12 text-red-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <p className="text-xl font-semibold mb-3">Camera Access Required</p>
-                <p className="mb-6">{error}</p>
-                <button type="button" onClick={startCamera} className="bg-white text-red-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100">
-                  Try Again
+                <p className="text-lg font-semibold text-red-800 mb-2">Camera access required</p>
+                <p className="text-red-700 mb-4">{error}</p>
+                <button type="button" onClick={startCamera} className="bg-red-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-red-700">
+                  Try again
                 </button>
               </div>
-            </div>
-          )}
-        </div>
-
-        <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/70 to-transparent p-6">
-          <div className="flex justify-center">
-            {!isRecording && countdown === null && cameraReady ? (
-              <button
-                type="button"
-                onClick={startCountdown}
-                className="bg-red-600 hover:bg-red-700 text-white px-12 py-4 rounded-full font-bold text-xl transition-all shadow-2xl flex items-center gap-3"
-              >
-                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                  <circle cx="10" cy="10" r="8" />
-                </svg>
-                Start Recording
-              </button>
-            ) : isRecording ? (
-              <button
-                type="button"
-                onClick={stopRecording}
-                className="bg-gray-800 hover:bg-gray-900 text-white px-12 py-4 rounded-full font-bold text-xl transition-all shadow-2xl flex items-center gap-3"
-              >
-                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                  <rect x="6" y="6" width="8" height="8" />
-                </svg>
-                Stop Recording
-              </button>
-            ) : null}
+            )}
           </div>
         </div>
       </div>

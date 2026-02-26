@@ -6,6 +6,7 @@ import Link from "next/link";
 export default function PricingSection() {
   const [isYearly, setIsYearly] = useState(true);
 
+  // 2 plans only: Creator ($39) + Professional ($79). Any-length videos; credits by duration.
   const plans = [
     {
       name: "Creator",
@@ -17,9 +18,10 @@ export default function PricingSection() {
         "Unlimited AI Script Generation",
         "50 Genie Script Edits",
         "500+ AI Avatars",
-        "5 Custom Avatars",
+        "1 Custom Avatar",
+        "Unlimited video length",
+        "Example: 20×1-min or 10×2-min videos",
         "720p Export",
-        "Max 90 sec per video",
       ],
       buttonText: "Get Started",
       highlighted: false,
@@ -35,33 +37,16 @@ export default function PricingSection() {
         "Everything in Creator plan",
         "150 Genie Edits",
         "100+ UGC Avatars",
+        "5 Custom Avatars",
+        "Unlimited video length",
+        "Example: 50×1-min or 25×2-min or 10×5-min",
         "1080p HD Export",
         "Priority Rendering",
-        "Max 2 min per video",
       ],
       buttonText: "Get Started",
       highlighted: true,
       badge: "Most Popular",
       href: "/checkout",
-    },
-    {
-      name: "Enterprise",
-      description: "For teams and agencies",
-      monthlyPrice: 199,
-      yearlyPrice: 169,
-      features: [
-        "150 Video Credits / month",
-        "Everything in Professional",
-        "500 Genie Edits",
-        "Team Collaboration",
-        "API Access",
-        "White Label Option",
-        "4K Export",
-        "Max 3-5 min per video",
-      ],
-      buttonText: "Contact Sales",
-      highlighted: false,
-      href: "/pricing",
     },
   ];
 
@@ -74,10 +59,10 @@ export default function PricingSection() {
         {/* Header */}
         <div className="text-center mb-12 lg:mb-16">
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3">
-            Simple Pricing
+            Simple, Transparent Pricing
           </h2>
           <p className="text-base sm:text-lg text-gray-600 mb-2">
-            Choose Your Plan <span className="text-2xl">✨⭐️</span>
+            Create videos of any length. Pay only for what you use.
           </p>
           <p className="text-lg sm:text-xl text-gray-600 mb-8">
             Start creating viral videos today
@@ -111,8 +96,38 @@ export default function PricingSection() {
           </div>
         </div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto">
+        {/* How credits work */}
+        <div className="mb-12 lg:mb-16 max-w-4xl mx-auto rounded-2xl border-2 border-sky-200 bg-gradient-to-br from-sky-50 to-blue-50 p-6 sm:p-8">
+          <h3 className="text-xl sm:text-2xl font-bold text-sky-900 text-center mb-6">
+            💳 How Credits Work
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-4">
+            {[
+              { duration: "0–60 sec", credits: "1 credit" },
+              { duration: "1–2 min", credits: "2 credits" },
+              { duration: "2–3 min", credits: "3 credits" },
+              { duration: "3–4 min", credits: "4 credits" },
+              { duration: "4–5 min", credits: "5 credits" },
+            ].map((tier) => (
+              <div
+                key={tier.duration}
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-sky-100 bg-white p-4"
+              >
+                <span className="text-sm font-semibold text-sky-900">{tier.duration}</span>
+                <span className="text-sky-600 font-medium">→</span>
+                <span className="rounded-full bg-sky-500 px-3 py-1 text-sm font-bold text-white">
+                  {tier.credits}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-base font-semibold text-sky-800">
+            ✨ No video length limits — create as long as you need.
+          </p>
+        </div>
+
+        {/* Pricing Cards - 2 columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 max-w-5xl mx-auto">
           {plans.map((plan) => (
             <div
               key={plan.name}
@@ -190,7 +205,7 @@ export default function PricingSection() {
 
         {/* Footer Note */}
         <p className="text-center text-sm text-gray-500 mt-12">
-          All plans include 7-day free trial. Cancel anytime.
+          Start with 10 free trial credits. No credit card required.
         </p>
       </div>
     </section>

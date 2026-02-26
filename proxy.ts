@@ -9,22 +9,28 @@ function isProtected(pathname: string): boolean {
 }
 
 /**
- * Proxy runs before route handlers (Next.js 16). Same logic as former middleware:
- * Auth check and redirect for protected paths; payment check happens in dashboard layout.
+ * Proxy runs before route handlers (Next.js 16). Replaces middleware.ts (Next only allows one).
+ * - Protect /dashboard and /checkout-required (require auth)
+ * - Redirect logged-in users from /auth/signin, /auth/signup to /dashboard
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (!isProtected(pathname)) {
-    return NextResponse.next();
-  }
 
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
   });
 
-  if (!token && isProtected(pathname)) {
+  // Logged-in users on sign-in/sign-up → dashboard
+  if (token && (pathname.startsWith("/auth/signin") || pathname.startsWith("/auth/signup"))) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  if (!isProtected(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (!token) {
     const signInUrl = new URL("/auth/signin", request.url);
     signInUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(signInUrl);
@@ -34,5 +40,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/checkout-required"],
+  matcher: ["/dashboard/:path*", "/checkout-required", "/auth/signin", "/auth/signin/", "/auth/signup", "/auth/signup/"],
 };

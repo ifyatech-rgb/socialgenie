@@ -1,123 +1,151 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { X, ArrowRight, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import { LogoIcon } from "@/components/logo"
 
-const STEPS = [
+const QUESTIONS = [
   {
-    key: "describeYou",
-    title: "What best describes you?",
+    id: "niche" as const,
+    question: "What's your niche or industry?",
+    type: "text" as const,
+    placeholder: "e.g., Fitness, Business, Tech, Finance...",
+    suggestions: ["Fitness", "Business", "Tech", "Finance", "Lifestyle", "Food", "Travel", "Fashion", "Gaming", "Education"],
+  },
+  {
+    id: "platform" as const,
+    question: "What platform do you post on most?",
+    type: "choice" as const,
     options: [
-      "E-commerce brand",
-      "SaaS founder",
-      "Coach / Course creator",
-      "Content creator",
-      "Local business owner",
-      "Marketing agency",
+      { value: "tiktok", label: "TikTok" },
+      { value: "instagram", label: "Instagram Reels" },
+      { value: "youtube", label: "YouTube Shorts" },
+      { value: "multiple", label: "Multiple platforms" },
     ],
   },
   {
-    key: "mainGoal",
-    title: "What's your main goal right now?",
+    id: "challenge" as const,
+    question: "What's your biggest challenge?",
+    type: "choice" as const,
     options: [
-      "Increase sales",
-      "Grow social media",
-      "Generate leads",
-      "Launch a new product",
-      "Automate content creation",
+      { value: "camera_shy", label: "Don't like being on camera" },
+      { value: "time", label: "Video creation takes too much time" },
+      { value: "content", label: "Don't know what to write/say" },
+      { value: "editing", label: "Editing is too complicated" },
     ],
   },
-  {
-    key: "videosPerMonth",
-    title: "How many videos do you want per month?",
-    options: ["1 to 10", "10 to 30", "30 to 100", "100+"],
-  },
-  {
-    key: "usedAiTools",
-    title: "Have you used AI video tools before?",
-    options: ["Yes, regularly", "Tried a few", "No, this is my first time"],
-  },
-  {
-    key: "whenPlanningStart",
-    title: "When are you planning to start?",
-    options: ["Immediately", "This week", "Just exploring"],
-  },
-] as const
+]
 
-type FormKey = (typeof STEPS)[number]["key"]
+type AnswerKey = "niche" | "platform" | "challenge"
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { status } = useSession()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState<Record<FormKey, string>>({
-    describeYou: "",
-    mainGoal: "",
-    videosPerMonth: "",
-    usedAiTools: "",
-    whenPlanningStart: "",
+  const [answers, setAnswers] = useState<Record<AnswerKey, string>>({
+    niche: "",
+    platform: "",
+    challenge: "",
   })
+  const [textInput, setTextInput] = useState("")
 
+  // If authenticated and already completed onboarding, go to dashboard (skip onboarding for existing users)
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/auth/signup")
-      return
-    }
+    if (status !== "authenticated") return
+    fetch("/api/user")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.user?.onboardingCompleted) {
+          router.replace("/dashboard")
+        }
+      })
+      .catch(() => {})
   }, [status, router])
 
-  const currentStepConfig = STEPS[step]
-  const currentValue = form[currentStepConfig.key]
-  const isFirstStep = step === 0
-  const isLastStep = step === STEPS.length - 1
-  const canProceed = Boolean(currentValue?.trim())
+  const current = QUESTIONS[step]
+  const isLast = step === QUESTIONS.length - 1
+  const value = current.type === "text" ? textInput.trim() : answers[current.id]
+  const canProceed = Boolean(current.type === "text" ? textInput.trim() : answers[current.id])
 
-  const setValue = (key: FormKey) => (value: string) =>
-    setForm((prev) => ({ ...prev, [key]: value }))
-
-  const handleNext = () => {
-    if (!canProceed) {
-      toast.error("Please select an option to continue.")
-      return
-    }
-    if (isLastStep) {
-      handleSubmit()
-      return
-    }
-    setStep((s) => Math.min(s + 1, STEPS.length - 1))
+  const setAnswer = (key: AnswerKey, val: string) => {
+    setAnswers((prev) => ({ ...prev, [key]: val }))
   }
 
-  const handleBack = () => {
-    setStep((s) => Math.max(0, s - 1))
-  }
-
-  const handleSubmit = async () => {
-    if (!canProceed && isLastStep) {
-      toast.error("Please select an option to continue.")
+  const handleNext = (submitValue?: string) => {
+    const val = submitValue ?? (current.type === "text" ? textInput.trim() : answers[current.id])
+    if (!val) {
+      toast.error("Please enter or select an option to continue.")
       return
     }
+    if (current.type === "text") {
+      setAnswer("niche", val)
+    } else {
+      setAnswer(current.id, val)
+    }
+
+    if (isLast) {
+      handleSubmit({ ...answers, [current.id]: val })
+      return
+    }
+    setStep((s) => s + 1)
+    setTextInput("")
+  }
+
+  const handleBack = () => setStep((s) => Math.max(0, s - 1))
+
+  const handleSubmit = async (final: Record<string, string>) => {
     setLoading(true)
     try {
-      const res = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to save onboarding")
+      const payload = {
+        niche: final.niche || undefined,
+        platform: final.platform || undefined,
+        challenge: final.challenge || undefined,
       }
-      toast.success("All set! Taking you to pricing…")
-      router.push("/pricing")
+      if (status === "authenticated") {
+        const res = await fetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || "Failed to save onboarding")
+        toast.success("All set! Taking you to the dashboard…")
+        router.push("/dashboard")
+      } else {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("onboardingAnswers", JSON.stringify(payload))
+        }
+        toast.success("One more step — create your password.")
+        router.push("/create-password")
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong.")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSkip = async () => {
+    if (status === "authenticated") {
+      try {
+        await fetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        })
+      } catch {
+        // continue to dashboard either way
+      }
+      router.push("/dashboard")
+    } else {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("onboardingAnswers", JSON.stringify({}))
+      }
+      router.push("/create-password")
     }
   }
 
@@ -147,23 +175,22 @@ export default function OnboardingPage() {
         <div className="relative bg-gray-900/95 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.4)] overflow-hidden">
           <button
             type="button"
-            onClick={() => router.push("/dashboard")}
+            onClick={handleSkip}
             className="absolute top-4 right-4 p-3 min-h-[48px] min-w-[48px] flex items-center justify-center text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 z-10"
-            aria-label="Close"
+            aria-label="Skip"
           >
             <X className="h-5 w-5" />
           </button>
 
           <div className="p-6 sm:p-8">
-            {/* Progress */}
             <div className="mb-6">
               <div className="flex justify-between text-sm text-gray-400 mb-2">
-                <span>Step {step + 1} of {STEPS.length}</span>
+                <span>Question {step + 1} of {QUESTIONS.length}</span>
               </div>
               <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+                  className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-300"
+                  style={{ width: `${((step + 1) / QUESTIONS.length) * 100}%` }}
                 />
               </div>
             </div>
@@ -171,80 +198,88 @@ export default function OnboardingPage() {
             <div className="flex justify-center gap-2 mb-6">
               <LogoIcon size={40} />
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white text-center mb-2">
-              Almost there
+            <h1 className="text-xl sm:text-2xl font-bold text-white text-center mb-8">
+              {current.question}
             </h1>
-            <p className="text-gray-400 text-sm text-center mb-8">
-              Answer a few questions so we can personalize your experience.
-            </p>
 
-            {/* One question per step */}
-            <div className="min-h-[280px]">
-              <label className="block text-sm font-medium text-gray-300 mb-4">
-                {currentStepConfig.title}
-              </label>
-              <div className="space-y-2">
-                {currentStepConfig.options.map((opt) => (
-                  <label
-                    key={opt}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                      currentValue === opt
-                        ? "bg-primary/20 border-primary text-white"
-                        : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={currentStepConfig.key}
-                      value={opt}
-                      checked={currentValue === opt}
-                      onChange={() => setValue(currentStepConfig.key)(opt)}
-                      className="sr-only"
-                    />
-                    <span className="text-sm">{opt}</span>
-                  </label>
-                ))}
-              </div>
+            <div className="min-h-[260px]">
+              {current.type === "text" && (
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder={current.placeholder}
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && textInput.trim()) handleNext(textInput.trim())
+                    }}
+                    className="w-full px-4 py-4 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary text-center text-lg"
+                    autoFocus
+                  />
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {current.suggestions!.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => handleNext(s)}
+                        className="px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:border-primary hover:text-white text-sm font-medium transition-colors"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {current.type === "choice" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {current.options!.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleNext(opt.value)}
+                      disabled={loading}
+                      className={`flex flex-col items-center justify-center min-h-[100px] p-6 rounded-xl border text-center transition-all ${
+                        answers[current.id] === opt.value
+                          ? "bg-primary/20 border-primary text-white"
+                          : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600"
+                      }`}
+                    >
+                      <span className="font-semibold text-sm sm:text-base">{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Navigation */}
             <div className="flex gap-3 mt-8">
-              {!isFirstStep && (
+              {step > 0 && (
                 <button
                   type="button"
                   onClick={handleBack}
                   disabled={loading}
-                  className="flex-1 min-h-[52px] py-3 px-4 rounded-2xl border border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white font-semibold transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 min-h-[52px] py-3 px-4 rounded-2xl border border-gray-600 text-gray-300 hover:bg-gray-800 font-semibold flex items-center justify-center gap-2"
                 >
                   <ArrowLeft className="w-5 h-5" />
                   Back
                 </button>
               )}
+              {current.type === "text" && (
+                <button
+                  type="button"
+                  onClick={() => canProceed && handleNext()}
+                  disabled={!canProceed || loading}
+                  className="flex-1 min-h-[52px] py-3 px-6 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  Continue
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              )}
               <button
                 type="button"
-                onClick={handleNext}
-                disabled={loading || !canProceed}
-                className={`min-h-[52px] py-3 px-6 rounded-2xl bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${!isFirstStep ? "flex-1" : "w-full"}`}
+                onClick={handleSkip}
+                className="min-h-[52px] py-3 px-4 rounded-2xl text-gray-400 hover:text-white font-medium"
               >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Saving…
-                  </span>
-                ) : isLastStep ? (
-                  <>
-                    Finish
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                ) : (
-                  <>
-                    Next
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
+                Skip
               </button>
             </div>
           </div>

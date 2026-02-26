@@ -1,40 +1,43 @@
 /**
- * Plan configurations: Trial, Creator ($39), Professional ($79), Enterprise ($199).
- * Creator: 20 credits | Professional: 50 credits | Enterprise: 150 credits.
+ * Plan configurations: Trial, Creator ($39), Professional ($79). Enterprise kept for existing subscribers only.
+ * Creator: 20 credits, 1 custom avatar | Professional: 50 credits, 5 custom avatars.
  * Replace priceId with your Stripe Price IDs from Dashboard → Products → Price.
  */
 
 export const PLANS = {
   trial: {
     name: "Free Trial",
-    description: "Try before you subscribe",
+    description: "7 days free, then $39/month",
     price: 0,
     priceId: null as string | null,
-    videoCredits: 3,
+    videoCredits: 10,
     genieEdits: 5,
-    customAvatarsLimit: 1,
-    maxVideoLength: 60,
+    customAvatarsLimit: 0,
+    maxVideoLength: null,
     exportQuality: "720p",
     hasWatermark: true,
-    canUseCustomAvatar: true,
+    canUseCustomAvatar: false,
     canUseUGCAvatars: true,
     hasPriorityRendering: false,
     hasAPIAccess: false,
     hasWhiteLabel: false,
     hasTeamCollaboration: false,
+    trialDays: 7,
     features: [
-      "Unlimited AI Script Generation",
-      "3 Video Credits",
+      "10 FREE Credits",
       "5 Genie Edits",
-      "1 Custom Avatar Upload",
-      "Watermarked videos",
-      "UGC Avatars",
+      "Create videos of any length",
+      "Credits based on duration",
+      "Valid for 7 days",
+      "All features unlocked",
+      "720p export",
+      "SocialGenie watermark",
     ],
     limits: {
-      maxVideoLength: 60,
-      maxVideosPerMonth: 3,
+      maxVideoLength: null,
+      maxVideosPerMonth: 10,
       genieEdits: 5,
-      customAvatars: 1,
+      customAvatars: 0,
       exportQuality: "720p",
       priorityRendering: false,
       teamCollaboration: false,
@@ -49,8 +52,8 @@ export const PLANS = {
     priceId: process.env.STRIPE_PRICE_ID_CREATOR ?? "price_1T1NAMFCaF1zVyH5iIi8bosR",
     videoCredits: 20,
     genieEdits: 50,
-    customAvatarsLimit: 5,
-    maxVideoLength: 90,
+    customAvatarsLimit: 1,
+    maxVideoLength: null,
     exportQuality: "720p",
     hasWatermark: false,
     canUseCustomAvatar: true,
@@ -62,20 +65,19 @@ export const PLANS = {
     icon: "🟢",
     features: [
       "20 Video Credits / month",
-      "(≈ 13 to 20 videos depending on length)",
+      "Unlimited video length",
+      "1–2 min = 2 credits, 2–3 min = 3 credits",
       "Unlimited AI Script Generation",
       "50 Genie Script Edits",
       "500+ AI Avatars",
-      "Custom Avatar Upload (video & image)",
-      "5 Custom Avatars",
+      "1 Custom Avatar",
       "720p Export",
-      "Max 90 sec per video",
     ],
     limits: {
-      maxVideoLength: 90,
+      maxVideoLength: null,
       maxVideosPerMonth: 20,
       genieEdits: 50,
-      customAvatars: 5,
+      customAvatars: 1,
       exportQuality: "720p",
       priorityRendering: false,
       teamCollaboration: false,
@@ -90,8 +92,8 @@ export const PLANS = {
     priceId: process.env.STRIPE_PRICE_ID_PROFESSIONAL ?? "price_1T1NB0FCaF1zVyH5jcqFqVLi",
     videoCredits: 50,
     genieEdits: 150,
-    customAvatarsLimit: 15,
-    maxVideoLength: 120,
+    customAvatarsLimit: 5,
+    maxVideoLength: null,
     exportQuality: "1080p",
     hasWatermark: false,
     canUseCustomAvatar: true,
@@ -104,19 +106,20 @@ export const PLANS = {
     badge: "Most Popular",
     features: [
       "50 Video Credits / month",
-      "(≈ 30 to 35 average videos)",
+      "Unlimited video length",
+      "1–2 min = 2 credits, 2–5 min = 5 credits",
       "Everything in Creator plan",
       "150 Genie Edits",
       "100+ UGC Avatars",
+      "5 Custom Avatars",
       "1080p HD Export",
       "Priority Rendering",
-      "Max 2 min per video",
     ],
     limits: {
-      maxVideoLength: 120,
+      maxVideoLength: null,
       maxVideosPerMonth: 50,
       genieEdits: 150,
-      customAvatars: 15,
+      customAvatars: 5,
       exportQuality: "1080p",
       priorityRendering: true,
       teamCollaboration: false,
@@ -184,12 +187,43 @@ export function getPlan(planName: string | null | undefined) {
   return PLANS[key] ?? PLANS.trial;
 }
 
-/** Video credit cost by duration (seconds). */
+/**
+ * Video credit cost by duration (seconds).
+ * 0–60s = 1, 61–120s = 2, 121–180s = 3, 181–240s = 4, 241–300s = 5, 5+ min = ceil(sec/60).
+ */
 export function calculateVideoCreditCost(durationSeconds: number): number {
   if (durationSeconds <= 60) return 1;
   if (durationSeconds <= 120) return 2;
   if (durationSeconds <= 180) return 3;
-  return 5;
+  if (durationSeconds <= 240) return 4;
+  if (durationSeconds <= 300) return 5;
+  return Math.ceil(durationSeconds / 60);
+}
+
+/** Alias for calculateVideoCreditCost (any-length pricing). */
+export function calculateCreditsForDuration(durationSeconds: number): number {
+  return calculateVideoCreditCost(durationSeconds);
+}
+
+/**
+ * Estimate credits for a script from word count (~150 words/min).
+ * Returns estimated duration (seconds), credits needed, and a short breakdown string.
+ */
+export function getCreditsEstimate(scriptText: string): {
+  estimatedDuration: number;
+  creditsNeeded: number;
+  breakdown: string;
+} {
+  const words = scriptText.trim().split(/\s+/).filter(Boolean).length;
+  const estimatedMinutes = words / 150;
+  const estimatedSeconds = Math.ceil(estimatedMinutes * 60);
+  const creditsNeeded = calculateVideoCreditCost(estimatedSeconds);
+  const mins = Math.ceil(estimatedMinutes) || 1;
+  return {
+    estimatedDuration: estimatedSeconds,
+    creditsNeeded,
+    breakdown: `~${mins} min video = ${creditsNeeded} credit${creditsNeeded === 1 ? "" : "s"}`,
+  };
 }
 
 export function canCreateVideo(user: PlanUser, estimatedDurationSeconds: number): boolean {

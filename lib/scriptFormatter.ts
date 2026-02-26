@@ -139,14 +139,16 @@ export function validateScriptStructure(script: string): {
 
 /**
  * Extract sections from a formatted script (for display).
+ * Uses only the FIRST occurrence of each section to avoid duplicate HOOK/CONTENT/CTA.
  */
 export function extractSections(script: string): { hook: string; content: string; cta: string } {
   if (!script || typeof script !== 'string') {
     return { hook: '', content: '', cta: '' }
   }
 
+  // First occurrence only: stop at next section header so we don't include duplicate sections
   const hookMatch = script.match(/(?:🎣\s*)?HOOK:\s*([\s\S]*?)(?=(?:📝\s*)?CONTENT:|(?:📢\s*)?CTA:|$)/i)
-  const contentMatch = script.match(/(?:📝\s*)?CONTENT:\s*([\s\S]*?)(?=(?:📢\s*)?CTA:|$)/i)
+  const contentMatch = script.match(/(?:📝\s*)?CONTENT:\s*([\s\S]*?)(?=(?:📢\s*)?CTA:|(?:🎣\s*)?HOOK:|(?:📝\s*)?CONTENT:|$)/i)
   const ctaMatch = script.match(/(?:📢\s*)?CTA:\s*([\s\S]*?)$/im)
 
   const hook = hookMatch ? hookMatch[1].trim() : ''
@@ -154,6 +156,79 @@ export function extractSections(script: string): { hook: string; content: string
   const cta = ctaMatch ? ctaMatch[1].trim() : ''
 
   return { hook, content, cta }
+}
+
+/** Research/thinking markers to strip from displayed script (not part of narration). */
+const RESEARCH_LINE_PATTERNS = [
+  /^SEARCH\s*\d+/im,
+  /^AUDIENCE PAIN POINTS:/im,
+  /^\*\*SEARCH\s*\d+/im,
+  /^\*\*Exact language used:\*\*/im,
+  /^\*\*Pricing strategy/im,
+  /Researching\.\.\./i,
+  /^---+\s*$/m,
+]
+
+/**
+ * Strip everything before the first script section so research/thinking is not shown.
+ * Returns only the part from "🎣 HOOK:" (or "HOOK:") onwards.
+ */
+export function extractScriptFromResponse(rawResponse: string): string {
+  if (!rawResponse || typeof rawResponse !== 'string') return ''
+  const trimmed = rawResponse.trim()
+  const hookStart = trimmed.search(/(?:🎣\s*)?HOOK:\s*/i)
+  if (hookStart !== -1) {
+    return trimmed.slice(hookStart).trim()
+  }
+  return trimmed
+}
+
+/**
+ * Remove research-style lines and markdown bold from script body (for display).
+ */
+export function stripResearchAndMarkdownFromScript(script: string): string {
+  if (!script || typeof script !== 'string') return ''
+  return script
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim()
+      if (RESEARCH_LINE_PATTERNS.some((p) => p.test(trimmed))) return ''
+      return trimmed.replace(/\*\*([^*]+)\*\*/g, '$1')
+    })
+    .filter((line) => line.length > 0)
+    .join('\n\n')
+    .trim()
+}
+
+/**
+ * Ensure exactly one HOOK, one CONTENT, one CTA by taking first occurrence of each.
+ * Removes duplicate sections that can appear when the AI outputs research + script or repeats sections.
+ */
+export function dedupeScriptSections(script: string): string {
+  if (!script || typeof script !== 'string') return ''
+
+  const hookMatch = script.match(/(?:🎣\s*)?HOOK:\s*([\s\S]*?)(?=(?:📝\s*)?CONTENT:|(?:📢\s*)?CTA:|$)/i)
+  const contentMatch = script.match(/(?:📝\s*)?CONTENT:\s*([\s\S]*?)(?=(?:📢\s*)?CTA:|(?:🎣\s*)?HOOK:|(?:📝\s*)?CONTENT:|$)/i)
+  const ctaMatch = script.match(/(?:📢\s*)?CTA:\s*([\s\S]*?)$/im)
+
+  const hook = hookMatch ? hookMatch[1].trim() : ''
+  const content = contentMatch ? contentMatch[1].trim() : ''
+  const cta = ctaMatch ? ctaMatch[1].trim() : ''
+
+  if (!hook && !content && !cta) return script
+
+  return `🎣 HOOK:\n${hook}\n\n📝 CONTENT:\n${content}\n\n📢 CTA:\n${cta}`.trim()
+}
+
+/**
+ * Prepare script for user display: script-only (no research), single sections, no markdown/research lines.
+ * Use before rendering in UI so users never see duplicate sections or internal AI notes.
+ */
+export function getDisplayScript(rawContent: string): string {
+  if (!rawContent || typeof rawContent !== 'string') return ''
+  const fromHook = extractScriptFromResponse(rawContent)
+  const deduped = dedupeScriptSections(fromHook)
+  return stripResearchAndMarkdownFromScript(deduped) || deduped
 }
 
 /**

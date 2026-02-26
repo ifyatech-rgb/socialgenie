@@ -39,7 +39,7 @@ const CREATOR_PLAN = {
   videoCreditsUsed: 0,
   genieEdits: 50,
   genieEditsUsed: 0,
-  customAvatarsLimit: 5,
+  customAvatarsLimit: 1,
   customAvatarsUsed: 0,
   maxVideoLength: 90,
   exportQuality: "720p",

@@ -2,19 +2,22 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Logo } from "@/components/logo";
 import LandingNavbar from "@/components/LandingNavbar";
-import PricingSection from "@/components/PricingSection";
 import FinalCTASection from "@/components/FinalCTASection";
 import HeroSection from "@/components/HeroSection";
 import ProblemsSection from "@/components/ProblemsSection";
 import HowItWorksSection from "@/components/HowItWorksSection";
 import ComparisonSection from "@/components/ComparisonSection";
+import LandingPricingSection from "@/components/LandingPricingSection";
 
 export default function LandingPage() {
   const router = useRouter();
+  const { status } = useSession();
 
-  const handleGetStarted = () => {
+  // No redirect: let logged-in users stay on the landing page if they want
+  const handleStartFreeTrial = () => {
     router.push("/auth/signup");
   };
 
@@ -120,7 +123,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {[
               { badge: "AI-Powered", title: "AI Script Generation", desc: "Generate viral scripts with AI, optimized for TikTok, Instagram Reels, and YouTube Shorts." },
-              { badge: "Project Management", title: "Project Management", desc: "Track all your videos in one place. Edit scripts, regenerate videos, manage your content library." },
+              { badge: "Any Length", title: "Any Length Videos", desc: "Create videos of unlimited length. Credits scale with duration — pay only for what you use." },
+              { badge: "Flexible", title: "Flexible Credits", desc: "No fixed limits. Make a 30-second TikTok or a 5-minute YouTube video with the same account." },
               { badge: "HeyGen Powered", title: "100+ Realistic AI Avatars", desc: "Choose from diverse AI avatars with natural expressions. Create videos without being on camera." },
               { badge: "One Click", title: "Multi-Platform Formats", desc: "Optimized for YouTube Shorts (9:16), TikTok, Instagram Reels. Perfect dimensions every time." },
               { badge: "Global Reach", title: "Natural AI Voices", desc: "50+ voices in multiple languages. No robotic sound, just natural narration for your videos." },
@@ -138,8 +142,23 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ========== PRICING (Framer-inspired) ========== */}
-      <PricingSection />
+      {/* ========== PRICING (full plans: Trial, Creator, Professional) ========== */}
+      <LandingPricingSection />
+
+      {/* ========== CTA (free trial → onboarding or signin) ========== */}
+      <section id="cta" className="py-16 sm:py-24 bg-gradient-to-br from-purple-600 to-violet-700">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Ready to start?</h2>
+          <p className="text-lg text-purple-100 mb-8">Start with 10 free credits.</p>
+          <button
+            type="button"
+            onClick={handleStartFreeTrial}
+            className="inline-flex items-center justify-center min-h-[52px] px-8 rounded-2xl bg-white text-purple-600 font-semibold hover:bg-purple-50 transition-colors"
+          >
+            Start Free Trial →
+          </button>
+        </div>
+      </section>
 
       {/* ========== FAQ ========== */}
       <section className="py-16 sm:py-24 bg-gradient-to-br from-[#FAF9FE] to-[#F5F3FF]">

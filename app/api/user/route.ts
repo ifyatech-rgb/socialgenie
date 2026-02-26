@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { getAuthUserEmail, getSessionForRequest, authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-const USER_CACHE_MS = 15_000; // 15 seconds, reduces duplicate hits from layout/children
-const userCache = new Map<string, { data: object; cacheTime: number }>();
+import { getTrialStatus } from "@/lib/payment";
+import { syncUserToSupabase } from "@/lib/supabase-sync";
+import { getUserCached, setUserCache } from "@/lib/user-cache";
 
 /**
  * GET /api/user - Get current user data including credits (Prisma only, single source of truth).
@@ -21,64 +21,36 @@ export async function GET(request: NextRequest) {
     // Same resolution order as dashboard: session user id first, then email
     const userIdFromSession = session?.user?.id ?? null;
     const emailNormalized = userEmail?.trim().toLowerCase() || undefined;
+    const selectFields = {
+      id: true,
+      email: true,
+      name: true,
+      image: true,
+      credits: true,
+      plan: true,
+      payment_status: true,
+      niche: true,
+      platform: true,
+      onboarding_completed: true,
+      avatar_url: true,
+      avatar_status: true,
+      custom_avatars_limit: true,
+      custom_avatars_used: true,
+      video_credits: true,
+      genie_edits: true,
+      created_at: true,
+      _count: { select: { scripts: true } },
+    } as const;
     let user = userIdFromSession
-      ? await prisma.user.findUnique({
+      ? await prisma.users.findUnique({
           where: { id: userIdFromSession },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            image: true,
-            credits: true,
-            plan: true,
-            payment_status: true,
-            niche: true,
-            platforms: true,
-            onboardingCompleted: true,
-            avatarUrl: true,
-            avatarStatus: true,
-            customAvatarsLimit: true,
-            customAvatarsUsed: true,
-            videoCredits: true,
-            genieEdits: true,
-            createdAt: true,
-            _count: {
-              select: {
-                scripts: true,
-                videos: true,
-              },
-            },
-          },
+          select: selectFields,
         })
       : null;
     if (!user && emailNormalized) {
-      user = await prisma.user.findUnique({
+      user = await prisma.users.findUnique({
         where: { email: emailNormalized },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          image: true,
-          credits: true,
-          plan: true,
-          payment_status: true,
-          niche: true,
-          platforms: true,
-          onboardingCompleted: true,
-          avatarUrl: true,
-          avatarStatus: true,
-          customAvatarsLimit: true,
-          customAvatarsUsed: true,
-          videoCredits: true,
-          genieEdits: true,
-          createdAt: true,
-          _count: {
-            select: {
-              scripts: true,
-              videos: true,
-            },
-          },
-        },
+        select: selectFields,
       });
     }
 
@@ -86,28 +58,52 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const cached = userCache.get(user.id);
-    if (cached && Date.now() - cached.cacheTime < USER_CACHE_MS) {
-      return NextResponse.json(cached.data);
+    const cached = getUserCached(user.id);
+    if (cached) {
+      const res = NextResponse.json(cached);
+      res.headers.set("Cache-Control", "private, s-maxage=60, stale-while-revalidate=300");
+      return res;
     }
 
-    const videoCreditsDb = user.videoCredits ?? 0;
-    const genieEditsDb = user.genieEdits ?? 0;
-    const creditsDisplay = user.credits ?? user.videoCredits ?? 0;
+    const videoCreditsDb = user.video_credits ?? 0;
+    const genieEditsDb = user.genie_edits ?? 0;
+    const creditsDisplay = user.credits ?? user.video_credits ?? 0;
+    const trialStatus = getTrialStatus(user.created_at ?? new Date());
+    const isTrialPlan = user.plan === "trial";
 
     const responseData = {
       user: {
-        ...user,
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
         credits: creditsDisplay,
         videoCredits: videoCreditsDb,
         genieEdits: genieEditsDb,
+        plan: user.plan,
+        payment_status: user.payment_status,
+        niche: user.niche,
+        platforms: user.platform,
+        onboardingCompleted: user.onboarding_completed,
+        avatarUrl: user.avatar_url,
+        avatarStatus: user.avatar_status,
+        customAvatarsLimit: user.custom_avatars_limit,
+        customAvatarsUsed: user.custom_avatars_used,
+        createdAt: user.created_at,
         scriptsCount: user._count.scripts,
-        videosCount: user._count.videos,
-        customAvatarsCreated: user.customAvatarsUsed ?? 0,
+        videosCount: 0,
+        customAvatarsCreated: user.custom_avatars_used ?? 0,
+        trial: {
+          isActive: isTrialPlan,
+          daysRemaining: trialStatus.daysRemaining,
+          isExpired: trialStatus.isExpired,
+        },
       },
     };
-    userCache.set(user.id, { data: responseData, cacheTime: Date.now() });
-    return NextResponse.json(responseData);
+    setUserCache(user.id, responseData);
+    const res = NextResponse.json(responseData);
+    res.headers.set("Cache-Control", "private, s-maxage=60, stale-while-revalidate=300");
+    return res;
   } catch (error) {
     console.error("Error fetching user:", error);
     return NextResponse.json(
@@ -130,7 +126,7 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { name, image, niche, platforms } = body;
 
-    const user = await prisma.user.update({
+    const user = await prisma.users.update({
       where: { id: session.user.id },
       data: {
         ...(name !== undefined && { name }),
@@ -146,10 +142,26 @@ export async function PUT(request: Request) {
         credits: true,
         plan: true,
         niche: true,
-        platforms: true,
-        onboardingCompleted: true,
+        platform: true,
+        onboarding_completed: true,
+        video_credits: true,
+        genie_edits: true,
+        custom_avatars_used: true,
+        custom_avatars_limit: true,
       },
     });
+
+    syncUserToSupabase({
+      id: user.id,
+      email: user.email,
+      name: user.name ?? undefined,
+      avatar_url: user.image ?? undefined,
+      plan: user.plan ?? undefined,
+      video_credits: user.video_credits ?? undefined,
+      genie_edits: user.genie_edits ?? undefined,
+      custom_avatars_used: user.custom_avatars_used ?? undefined,
+      custom_avatars_limit: user.custom_avatars_limit ?? undefined,
+    }).catch(() => {});
 
     return NextResponse.json({ user });
   } catch (error: any) {

@@ -169,29 +169,6 @@ export function UploadStep({
               </button>
             </div>
 
-            {!isPhoto && (
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={greenScreen}
-                  onChange={(e) => setGreenScreen(e.target.checked)}
-                  className="h-4 w-4 rounded border-[#E5E7EB] text-[#000000] focus:ring-[#000000]"
-                  aria-describedby="greenscreen-info"
-                />
-                <span className="text-base text-[#000000]">
-                  My footage has a green screen
-                </span>
-                <span
-                  id="greenscreen-info"
-                  className="ml-1 text-[#6B7280]"
-                  title="Check if your video was recorded with a green screen background"
-                  aria-label="Information"
-                >
-                  ⓘ
-                </span>
-              </label>
-            )}
-
             <section aria-labelledby="check-requirements-heading">
               <h2
                 id="check-requirements-heading"

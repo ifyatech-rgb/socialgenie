@@ -33,15 +33,15 @@ export async function GET() {
     const activeUserIds = new Set((activeUserRows ?? []).map((r: { user_id: string }) => r.user_id))
     const activeUsers = activeUserIds.size
 
-    // Prisma: Script counts; "videos created" = Scripts with generatedVideoUrl (AI-generated videos)
+    // Prisma: Script counts; "videos created" = Scripts with generated_video_url (AI-generated videos)
     const [totalScripts, scriptsToday, totalVideos, videosToday] = await Promise.all([
-      prisma.script.count(),
-      prisma.script.count({ where: { createdAt: { gte: dayStart } } }),
-      prisma.script.count({ where: { generatedVideoUrl: { not: null } } }),
-      prisma.script.count({
+      prisma.scripts.count(),
+      prisma.scripts.count({ where: { created_at: { gte: dayStart } } }),
+      prisma.scripts.count({ where: { generated_video_url: { not: null } } }),
+      prisma.scripts.count({
         where: {
-          generatedVideoUrl: { not: null },
-          createdAt: { gte: dayStart },
+          generated_video_url: { not: null },
+          created_at: { gte: dayStart },
         },
       }),
     ])
@@ -72,7 +72,7 @@ export async function GET() {
 
     const topUsers = await Promise.all(
       (topProfiles ?? []).map(async (p: { id: string; email: string; [key: string]: unknown }) => {
-        const prismaUser = await prisma.user.findUnique({
+        const prismaUser = await prisma.users.findUnique({
           where: { email: p.email },
           select: { id: true },
         })
@@ -80,9 +80,9 @@ export async function GET() {
           return { ...p, scriptCount: 0, videoCount: 0 }
         }
         const [scriptCount, videoCount] = await Promise.all([
-          prisma.script.count({ where: { userId: prismaUser.id } }),
-          prisma.script.count({
-            where: { userId: prismaUser.id, generatedVideoUrl: { not: null } },
+          prisma.scripts.count({ where: { user_id: prismaUser.id } }),
+          prisma.scripts.count({
+            where: { user_id: prismaUser.id, generated_video_url: { not: null } },
           }),
         ])
         return { ...p, scriptCount, videoCount }
@@ -112,13 +112,13 @@ export async function GET() {
     // Previous period (yesterday) for today's growth %
     const yesterdayStart = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000)
     const [prevScriptsToday, prevVideosToday, prevNewUsersRes] = await Promise.all([
-      prisma.script.count({
-        where: { createdAt: { gte: yesterdayStart, lt: dayStart } },
+      prisma.scripts.count({
+        where: { created_at: { gte: yesterdayStart, lt: dayStart } },
       }),
-      prisma.script.count({
+      prisma.scripts.count({
         where: {
-          generatedVideoUrl: { not: null },
-          createdAt: { gte: yesterdayStart, lt: dayStart },
+          generated_video_url: { not: null },
+          created_at: { gte: yesterdayStart, lt: dayStart },
         },
       }),
       supabase

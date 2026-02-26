@@ -17,7 +17,9 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clearScriptVideoContext } from "@/lib/script-video-context-storage";
 import { Logo, LogoIcon } from "@/components/logo";
+import { UpgradePopup, type UpgradePopupUser } from "@/components/UpgradePopup";
 import { DashboardStatsProvider } from "./dashboard-stats-context";
 import { CreditsProvider } from "./credits-context";
 
@@ -41,6 +43,9 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
+  const [dashboardUser, setDashboardUser] = useState<UpgradePopupUser | null>(null);
+  const [showUpgradePopup, setShowUpgradePopup] = useState(false);
+  const upgradePopupShownRef = useRef(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -51,8 +56,8 @@ export default function DashboardLayout({
   // Single fetch for user credits; dedupe and debounce to avoid 5 to 6 duplicate /api/user calls
   const lastFetchRef = useRef<number>(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const DEDUPE_MS = 3000;
-  const DEBOUNCE_MS = 1500;
+  const DEDUPE_MS = 20_000; // Max once per 20 sec to avoid constant refresh
+  const DEBOUNCE_MS = 2000;
 
   const fetchUser = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -66,17 +71,29 @@ export default function DashboardLayout({
       });
       if (res.ok) {
         const data = await res.json();
-        setCredits(data.user?.videoCredits ?? data.user?.credits ?? 0);
-        if (data.user?.onboardingCompleted === false) {
+        const u = data.user;
+        setCredits(u?.videoCredits ?? u?.credits ?? 0);
+        if (u?.onboardingCompleted === false) {
           router.replace("/onboarding");
           return;
         }
-        const paymentStatus = data.user?.payment_status;
+        const paymentStatus = u?.payment_status;
         if (paymentStatus === "pending") {
           router.replace("/pricing");
+          return;
         }
+        setDashboardUser({
+          videoCredits: u?.videoCredits ?? u?.credits,
+          genieEdits: u?.genieEdits,
+          plan: u?.plan,
+          createdAt: u?.createdAt,
+          trial_ends_at: u?.trial_ends_at,
+        });
+      } else {
+        setCredits(0);
       }
     } catch (error) {
+      setCredits(0);
       if (process.env.NODE_ENV === "development") {
         console.warn("User fetch failed (will retry):", error);
       }
@@ -112,6 +129,28 @@ export default function DashboardLayout({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [debouncedFetchUser]);
+
+  // Show upgrade popup when user has low credits / trial expiring / low genie (after 2s delay, once per session)
+  useEffect(() => {
+    if (!dashboardUser || upgradePopupShownRef.current) return;
+    const creditsNum = dashboardUser.videoCredits ?? 0;
+    const genieNum = dashboardUser.genieEdits ?? 0;
+    const trialEnd = dashboardUser.trial_ends_at ? new Date(dashboardUser.trial_ends_at).getTime() : null;
+    const created = dashboardUser.createdAt ? new Date(dashboardUser.createdAt).getTime() : null;
+    const trialSoon =
+      trialEnd != null
+        ? trialEnd - Date.now() < 2 * 24 * 60 * 60 * 1000
+        : dashboardUser.plan === "trial" &&
+          created != null &&
+          Date.now() - created > 5 * 24 * 60 * 60 * 1000;
+    const needsUpgrade = creditsNum <= 0 || creditsNum <= 2 || trialSoon || genieNum <= 5;
+    if (!needsUpgrade) return;
+    const t = setTimeout(() => {
+      upgradePopupShownRef.current = true;
+      setShowUpgradePopup(true);
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [dashboardUser]);
 
   // Close sidebar on route change
   useEffect(() => {
@@ -267,7 +306,10 @@ export default function DashboardLayout({
                   <div className="border-t border-gray-100 my-1" />
                   <button
                     type="button"
-                    onClick={() => signOut({ callbackUrl: "/" })}
+                    onClick={() => {
+                      clearScriptVideoContext();
+                      signOut({ callbackUrl: "/" });
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 text-red-600 text-sm font-medium rounded-lg mx-2 transition-colors text-left"
                   >
                     <LogOut className="h-4 w-4" />
@@ -309,6 +351,13 @@ export default function DashboardLayout({
           </CreditsProvider>
         </main>
       </div>
+
+      {showUpgradePopup && dashboardUser && (
+        <UpgradePopup
+          user={dashboardUser}
+          onClose={() => setShowUpgradePopup(false)}
+        />
+      )}
     </div>
   );
 }
